@@ -112,4 +112,5 @@ p_final, q_final, p_hist, q_hist = ms_gd_optimization(
 )
 
 print(f"Final p: {p_final}")
+
 print(f"Final q: {q_final}")
