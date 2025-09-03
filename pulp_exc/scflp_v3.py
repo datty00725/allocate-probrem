@@ -345,6 +345,9 @@ def scflp_solve(
     cuts_log: List[Tuple[str, float]] = []
     t0 = time.time()
 
+    bulge_count = 0
+    submod_count = 0
+
     log_header("S-CFLP を解きます（DCG + Bulge/Submodular カット）", log_level)
     log_step(f"候補地 J = {J}, 需要点 I = {I}, p = {p}, r = {r}", log_level)
 
@@ -386,6 +389,7 @@ def scflp_solve(
                 model, theta, c0, coeffs, name=f"bulge_{cuts_added}"
             )
             cuts_added += 1
+            bulge_count += 1
             cuts_log.append(("bulge", Lb))
 
             kinds = ["bulge"]
@@ -398,6 +402,7 @@ def scflp_solve(
                     model, theta, c0_s, coeffs_s, name=f"submod_{cuts_added}"
                 )
                 cuts_added += 1
+                submod_count += 1
                 cuts_log.append(("submod", c0_s))
                 kinds.append("submod")
 
@@ -418,6 +423,10 @@ def scflp_solve(
     log_done("求解完了", t0, log_level)
     log_step(f"✨ 目的値 θ = {theta_hat:.6f} / 選択サイト {sel}", log_level)
     log_step(f"🧷 追加カット {cuts_added} 本", log_level)
+    log_step(
+        f"🧷 追加カット 合計 {cuts_added} 本（Bulge: {bulge_count}, Submodular: {submod_count}）",
+        log_level,
+    )
     if abs(x_hat.sum() - p) > 1e-6:
         log_warn("Σx が p と一致していません。予算制約を確認してください。", log_level)
 
@@ -429,6 +438,8 @@ def scflp_solve(
         iterations=it,
         cuts=cuts_added,
         cuts_log=cuts_log,
+        bulge_cuts=bulge_count,
+        submod_cuts=submod_count,
         selected_sites=sel,
         time_sec=time.time() - t0,
     )
@@ -537,6 +548,8 @@ def node_solve_until_no_violation(
     """
     J = int(data["J"])
     total_new_cuts = 0
+    bulge_added = 0
+    submod_added = 0
 
     for _ in range(max_cuts_per_node):
         model, xvars, theta, solver = build_master_with_fixings_and_cuts(
@@ -572,6 +585,8 @@ def node_solve_until_no_violation(
                 viol=gap,
                 integral=is_int,
                 cuts_added=total_new_cuts,
+                bulge_added=bulge_added,
+                submod_added=submod_added,
             )
 
         # 違反あり → カット追加
@@ -580,6 +595,8 @@ def node_solve_until_no_violation(
         coeffs = {j: float(grad[j]) for j in range(J) if abs(grad[j]) > 1e-12}
         node["cuts"].append((c0, coeffs))
         total_new_cuts += 1
+        bulge_added += 1
+        kinds = ["bulge"]
 
         if is_int:
             x_bin = (x_hat > 0.5).astype(float)
@@ -587,6 +604,10 @@ def node_solve_until_no_violation(
             c0s, coeffs_s = submodular_cut_coeffs(data, x_bin, y_bin)
             node["cuts"].append((c0s, coeffs_s))
             total_new_cuts += 1
+            submod_added += 1
+            kinds.append("submod")
+
+        log_cut(kinds, log_level)
 
         if total_new_cuts >= max_cuts_per_node:
             log_warn(
@@ -604,6 +625,8 @@ def node_solve_until_no_violation(
         viol=gap,
         integral=is_int,
         cuts_added=total_new_cuts,
+        bulge_added=bulge_added,
+        submod_added=submod_added,
     )
 
 
@@ -685,6 +708,10 @@ def scflp_branch_and_cut(
     theta_LB = 0.0
     x_best = None
 
+    total_bulge = 0
+    total_submod = 0
+    total_cuts = 0
+
     # ルートノード
     root = make_node()
     if p < 0 or p > J:
@@ -738,6 +765,10 @@ def scflp_branch_and_cut(
         x_hat = info["x_hat"]
         is_int = info["integral"]
         node["ub"] = float(theta_hat)
+
+        total_cuts += int(info.get("cuts_added", 0))
+        total_bulge += int(info.get("bulge_added", 0))
+        total_submod += int(info.get("submod_added", 0))
 
         # 上界による枝刈り
         if theta_hat <= theta_LB + tol:
@@ -807,6 +838,11 @@ def scflp_branch_and_cut(
     else:
         log_warn("実行中にインカンベントは見つかりませんでした。", log_level)
 
+    log_step(
+        f"🧾 カット総計: {total_cuts} 本（Bulge: {total_bulge}, Submodular: {total_submod}）",
+        log_level,
+    )
+
     return dict(
         x_best=x_best,
         theta_best=float(theta_LB),
@@ -814,4 +850,7 @@ def scflp_branch_and_cut(
         nodes_explored=explored,
         time_sec=elapsed,
         gap_bound=float(gap),
+        total_cuts=total_cuts,
+        total_bulge=total_bulge,
+        total_submod=total_submod,
     )
