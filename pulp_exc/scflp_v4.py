@@ -214,24 +214,22 @@ def approximate_separation_y(
 # ========== MILP（PuLP）ユーティリティ =========================================
 
 
-def build_master_pulp(nJ: int, p: int, solver_name: str = "CBC"):
-    import pulp  # lazy import
+def build_master_pulp(nJ, p, solver_name="CBC", lp_relax=True):
+    import pulp
 
     model = pulp.LpProblem("S_CFLP_Master", pulp.LpMaximize)
+    cat = "Continuous" if lp_relax else "Binary"
     x = {
-        j: pulp.LpVariable(f"x[{j}]", lowBound=0, upBound=1, cat="Binary")
-        for j in range(nJ)
+        j: pulp.LpVariable(f"x[{j}]", lowBound=0, upBound=1, cat=cat) for j in range(nJ)
     }
     theta = pulp.LpVariable("theta", lowBound=0.0, upBound=1.0, cat="Continuous")
-    # 予算制約と目的
     model += pulp.lpSum([x[j] for j in range(nJ)]) == p, "budget_eq"
-    model += theta, "obj"
-    if solver_name == "CBC":
-        solver = pulp.PULP_CBC_CMD(msg=False)
-    elif solver_name == "GLPK":
-        solver = pulp.GLPK_CMD(msg=False)
-    else:
-        solver = pulp.PULP_CBC_CMD(msg=False)
+    model += theta
+    solver = (
+        pulp.PULP_CBC_CMD(msg=False)
+        if solver_name == "CBC"
+        else pulp.GLPK_CMD(msg=False)
+    )
     return model, x, theta, solver
 
 
@@ -376,7 +374,8 @@ def scflp_solve(
 
             # カット選択
             policy = cut_policy.lower()
-            if policy == "submodular" and is_int:
+            if policy == "submodular" or (policy == "auto" and is_int):
+                # x が整数なら Submodular（auto でもここに来る）
                 x_bin = (x_hat > 0.5).astype(float)
                 y_bin = (y_hat > 0.5).astype(float)
                 c0, coeffs = submodular_cut_coeffs(data, x_bin, y_bin)
@@ -385,14 +384,16 @@ def scflp_solve(
                 )
                 kind_used = "submod"
                 submod_count += 1
-            else:
-                # "bulge" または "auto"（整数でない場合を含む）
+            elif policy == "bulge" or (policy == "auto" and not is_int):
+                # 分数の間は Bulge（auto でもここ）
                 Lb, grad = Lb_and_grad(data, x_hat, y_hat)
                 c0 = Lb - float((grad * x_hat).sum())
                 coeffs = {j: float(grad[j]) for j in range(J) if abs(grad[j]) > 1e-12}
                 add_linear_cut_theta_le(model, theta, c0, coeffs, f"bulge_{cuts_added}")
                 kind_used = "bulge"
                 bulge_count += 1
+            else:
+                raise ValueError(f"unknown cut_policy: {policy}")
 
             cuts_added += 1
             cuts_log.append((kind_used, c0))
@@ -441,6 +442,7 @@ def build_master_with_fixings_and_cuts(
     local_cuts: List[Tuple[float, Dict[int, float]]],
     global_cuts: List[Tuple[float, Dict[int, float]]],
     solver_name: str = "CBC",
+    lp_relax: bool = True,
 ):
     """
     分枝での固定と既存カットを含めて master を構築する。
@@ -449,29 +451,33 @@ def build_master_with_fixings_and_cuts(
     import pulp
 
     model = pulp.LpProblem("S_CFLP_Master", pulp.LpMaximize)
+    cat = "Continuous" if lp_relax else "Binary"
     xvars = {}
     for j in range(nJ):
         if j in fix1:
-            xvars[j] = pulp.LpVariable(f"x[{j}]", lowBound=1, upBound=1, cat="Binary")
+            xvars[j] = pulp.LpVariable(
+                f"x[{j}]", lowBound=1, upBound=1, cat="Continuous"
+            )  # 固定
         elif j in fix0:
-            xvars[j] = pulp.LpVariable(f"x[{j}]", lowBound=0, upBound=0, cat="Binary")
+            xvars[j] = pulp.LpVariable(
+                f"x[{j}]", lowBound=0, upBound=0, cat="Continuous"
+            )  # 固定
         else:
-            xvars[j] = pulp.LpVariable(f"x[{j}]", lowBound=0, upBound=1, cat="Binary")
-
+            xvars[j] = pulp.LpVariable(f"x[{j}]", lowBound=0, upBound=1, cat=cat)
     theta = pulp.LpVariable("theta", lowBound=0.0, upBound=1.0, cat="Continuous")
     model += pulp.lpSum([xvars[j] for j in range(nJ)]) == p, "budget_eq"
-    model += theta, "obj"
+    model += theta
 
     # 既存カット（local + global）を再追加
-    def replay(cuts, prefix):
+    def replay(mdl, cuts, prefix):
         for k, (c0, coeffs) in enumerate(cuts):
             expr = 0.0
             for j, cj in coeffs.items():
                 expr += cj * xvars[j]
-            model += (theta - expr <= c0), f"{prefix}_{k}"
+            mdl += (theta - expr <= c0), f"{prefix}_{k}"
 
-    replay(global_cuts, "gcut")
-    replay(local_cuts, "lcut")
+    replay(model, global_cuts, "gcut")
+    replay(model, local_cuts, "lcut")
 
     if solver_name == "CBC":
         solver = pulp.PULP_CBC_CMD(msg=False)
@@ -521,6 +527,7 @@ def node_solve_until_no_violation(
     separation: str = "approx",  # "approx"/"exact"
     max_cuts_per_node: int = 200,
     log_level: str = "info",
+    lp_relax: bool = True,
 ):
     """
     論文 行5–9: 1ノードのフォーミュレーションを
@@ -540,6 +547,7 @@ def node_solve_until_no_violation(
             local_cuts=node["cuts"],
             global_cuts=global_cuts,
             solver_name=pulp_solver,
+            lp_relax=lp_relax,
         )
         status = solve_master(model, solver)
         x_hat, theta_hat = get_values_pulp(xvars, theta)
@@ -576,16 +584,15 @@ def node_solve_until_no_violation(
 
         # 違反あり → カット 1 本追加（行8）
         policy = cut_policy.lower()
-        if policy == "submodular" and is_int:
+        if policy == "submodular" or (policy == "auto" and is_int):
             x_bin = (x_hat > 0.5).astype(float)
             y_bin = (y_hat > 0.5).astype(float)
             c0, coeffs = submodular_cut_coeffs(data, x_bin, y_bin)
-            # 全フォーミュレーションに効く global cut としても追加
             node["cuts"].append((c0, coeffs))
             global_cuts.append((c0, coeffs))
             submod_added += 1
             added_kind = "submod"
-        else:
+        elif policy == "bulge" or (policy == "auto" and not is_int):
             Lb, grad = Lb_and_grad(data, x_hat, y_hat)
             c0 = Lb - float((grad * x_hat).sum())
             coeffs = {j: float(grad[j]) for j in range(J) if abs(grad[j]) > 1e-12}
@@ -593,6 +600,8 @@ def node_solve_until_no_violation(
             global_cuts.append((c0, coeffs))
             bulge_added += 1
             added_kind = "bulge"
+        else:
+            raise ValueError(f"unknown cut_policy: {policy}")
 
         total_new_cuts += 1
         log_cut(added_kind, log_level)
@@ -627,6 +636,7 @@ def scflp_branch_and_cut(
     log_level: str = "info",
     separation: str = "approx",
     cut_policy: str = "auto",
+    lp_relax: bool = True,
 ) -> Dict[str, object]:
     """
     論文 Algorithm 1 に沿った Branch-and-Cut 実装。
@@ -681,6 +691,7 @@ def scflp_branch_and_cut(
             separation=separation,
             max_cuts_per_node=max_rounds_per_node,
             log_level=log_level,
+            lp_relax=True,
         )
         theta_hat = info["theta_hat"]
         x_hat = info["x_hat"]
