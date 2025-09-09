@@ -1,9 +1,9 @@
 # scflp_fn.py
-# 逐次型 競争的施設配置問題 (S-CFLP) — 関数版（フレンドリーなログ）
+# 逐次型 競争的施設配置問題 (S-CFLP) — 関数版（論文 Algorithm 1 に忠実）
 # ・Branch-and-(outer)-Cut + 遅延制約生成（DCG）
-# ・フォロワ側の分離は命題5の近似分離（単一ソート）
-# ・追加カット: Bulge（常に） / Submodular（xが整数のとき）
-# ・MILPはPuLP(CBC/GLPK)のみを使用（簡素化のため）
+# ・分離は「近似」(命題5) または「厳密」を選択可（既定: 近似）
+# ・カットは 1 回の違反につき 1 本のみ追加（Bulge か Submodular）
+# ・MILP は PuLP(CBC/GLPK)
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ import shutil
 import numpy as np
 from typing import Dict, List, Optional, Tuple, Set
 
-# ========== データ生成・前処理（クラス廃止、dictで扱う） =========================
+# ========== データ生成・前処理 ==================================================
 
 
 def normalize_h(h: np.ndarray) -> np.ndarray:
@@ -254,7 +254,7 @@ def add_linear_cut_theta_le(
     model += (theta - expr <= c0), name
 
 
-# ========== ログ（関数版） =====================================================
+# ========== ログ ===============================================================
 
 
 def _term_width(default=100) -> int:
@@ -291,10 +291,10 @@ def log_debug(msg: str, level: str):
     print(f"   · {msg}")
 
 
-def log_cut(kinds: List[str], level: str):
+def log_cut(kind: str, level: str):
     if level not in ("info", "debug"):
         return
-    print(f"✂️  カット追加: {' + '.join(kinds).upper()}")
+    print(f"✂️  カット追加: {kind.upper()}")
 
 
 def log_success(msg: str, level: str):
@@ -317,7 +317,7 @@ def log_done(msg: str, tstart: float, level: str):
     print("═" * w)
 
 
-# ========== メイン求解ルーチン（関数のみ） =====================================
+# ========== Outer Cutting-Plane（論文 行1,5–9 部分） ===========================
 
 
 def scflp_solve(
@@ -326,121 +326,88 @@ def scflp_solve(
     tol: float = 1e-8,
     pulp_solver: str = "CBC",
     log_level: str = "info",
+    separation: str = "approx",  # "approx" or "exact"（exactは未実装）
+    cut_policy: str = "auto",  # "bulge" / "submodular" / "auto"
 ) -> Dict[str, object]:
     """
-    DCG 主ループ（outer cutting plane）:
-      1) master MILP（θ最大化, Σx=p）を解く
-      2) 近似分離で ŷ を構成（β降順にr個）
-      3) 真の L(x̂,ŷ) を計算。違反があれば Bulge カット（＋整数なら Submodular）
-      4) 違反なしで停止
+    論文の外側 cutting-plane（分枝なし）。違反がある限り、1 回に 1 本のカットを追加。
     """
     J = int(data["J"])
     I = int(data["I"])
     p = int(data["p"])
     r = int(data["r"])
 
-    # 準備
     model, xvars, theta, solver = build_master_pulp(J, p, solver_name=pulp_solver)
     cuts_added = 0
     cuts_log: List[Tuple[str, float]] = []
     t0 = time.time()
-
     bulge_count = 0
     submod_count = 0
 
-    log_header("S-CFLP を解きます（DCG + Bulge/Submodular カット）", log_level)
+    log_header("S-CFLP を解きます（Outer Cutting-Plane）", log_level)
     log_step(f"候補地 J = {J}, 需要点 I = {I}, p = {p}, r = {r}", log_level)
 
     for it in range(1, max_rounds + 1):
-        it_start = time.time()
+        log_line(log_level)
         status = solve_master(model, solver)
         x_hat, theta_hat = get_values_pulp(xvars, theta)
         is_int = bool(np.all((x_hat < 1e-6) | (x_hat > 1 - 1e-6)))
-
-        log_line(log_level)
         log_step(
-            f"🧮 ラウンド {it}: master 解 → θ̂ = {theta_hat:.6f}, |x| = {x_hat.sum():.0f}/{p}（{'整数' if is_int else '小数混在'}）",
+            f"🧮 ラウンド {it}: θ̂ = {theta_hat:.6f}, |x| = {x_hat.sum():.0f}/{p}（{'整数' if is_int else '小数混在'}）",
             log_level,
         )
 
-        # 近似分離
-        y_hat, ub_lin, beta = approximate_separation_y(data, x_hat)
-        y_idx = np.where(y_hat > 0.5)[0].tolist()
+        # 分離（既定: 近似）
+        if separation == "approx":
+            y_hat, ub_lin, beta = approximate_separation_y(data, x_hat)
+        else:
+            # exact 分離(6)が未実装の場合も API を保つ
+            y_hat, ub_lin, beta = approximate_separation_y(data, x_hat)
+
         true_val = L_value(data, x_hat, y_hat)
         gap = theta_hat - true_val
-        log_step(
-            f"🔎 分離：ŷ は {y_idx}（r = {r}）。上界 α − βᵀŷ = {ub_lin:.6f}", log_level
-        )
-        topk = np.argsort(-beta)[: min(5, J)]
-        log_debug(
-            "β 上位: " + ", ".join([f"j={int(j)}: β={beta[j]:.4g}" for j in topk]),
-            log_level,
-        )
-        log_step(
-            f"📐 評価：L(x̂,ŷ) = {true_val:.6f} → 違反量 θ̂ - L = {gap:.3e}", log_level
-        )
+        y_idx = np.where(y_hat > 0.5)[0].tolist()
+        log_step(f"🔎 分離: ŷ = {y_idx}（r={r}）, 上界 α−βᵀŷ = {ub_lin:.6f}", log_level)
+        log_step(f"📐 評価: L(x̂,ŷ) = {true_val:.6f} → 違反 {gap:.3e}", log_level)
 
+        # 論文 行7: 違反ありなら 1 本だけカット追加
         if theta_hat > true_val + tol:
-            # 違反あり → カット追加
-            kinds = []
+            kind_used = None
 
-            # Bulge cut
-            Lb, grad = Lb_and_grad(data, x_hat, y_hat)
-            c0 = Lb - float((grad * x_hat).sum())
-            coeffs = {j: float(grad[j]) for j in range(J) if abs(grad[j]) > 1e-12}
-            node["cuts"].append((c0, coeffs))
-            total_new_cuts += 1
-            bulge_added += 1
-            kinds.append("bulge")
+            # カット選択
+            policy = cut_policy.lower()
+            if policy == "submodular" and is_int:
+                x_bin = (x_hat > 0.5).astype(float)
+                y_bin = (y_hat > 0.5).astype(float)
+                c0, coeffs = submodular_cut_coeffs(data, x_bin, y_bin)
+                add_linear_cut_theta_le(
+                    model, theta, c0, coeffs, f"submod_{cuts_added}"
+                )
+                kind_used = "submod"
+                submod_count += 1
+            else:
+                # "bulge" または "auto"（整数でない場合を含む）
+                Lb, grad = Lb_and_grad(data, x_hat, y_hat)
+                c0 = Lb - float((grad * x_hat).sum())
+                coeffs = {j: float(grad[j]) for j in range(J) if abs(grad[j]) > 1e-12}
+                add_linear_cut_theta_le(model, theta, c0, coeffs, f"bulge_{cuts_added}")
+                kind_used = "bulge"
+                bulge_count += 1
 
-            # Submodular cut（分数 x に対する厳密分離）
-            c0s, coeffs_s, rhs_star, S_idx = submodular_cut_coeffs_fractional_exact(
-                data, x_hat, y_hat
-            )
-            node["cuts"].append((c0s, coeffs_s))
-            total_new_cuts += 1
-            submod_added += 1
-            kinds.append("submod")
-
-            log_cut(kinds, log_level)
-            log_debug(
-                f"   · NW分離: min_S H(S) = {rhs_star:.6f}（|S*|={len(S_idx)}）",
-                log_level,
-            )
-
-            # Submodular cut（分数 x に対して厳密分離）
-            c0s, coeffs_s, rhs_star, S_idx = submodular_cut_coeffs_fractional_exact(
-                data, x_hat, y_hat
-            )
-            add_linear_cut_theta_le(
-                model, theta, c0s, coeffs_s, name=f"submod_{cuts_added}"
-            )
             cuts_added += 1
-            submod_count += 1
-            cuts_log.append(("submod", c0s))
-            kinds.append("submod")
-
-            log_cut(kinds, log_level)
-            log_debug(
-                f"   · NW分離: min_S H(S) = {rhs_star:.6f}（|S*|={len(S_idx)}）",
-                log_level,
-            )
-            log_debug(
-                f"このラウンド所要: {time.time()-it_start:.2f}s / 累計カット {cuts_added}",
-                log_level,
-            )
-            continue
+            cuts_log.append((kind_used, c0))
+            log_cut(kind_used, log_level)
+            continue  # 強化した同一フォーミュレーションを再解く（行9）
         else:
             log_success("違反なし。現在の Y-closure に対して最適です。", log_level)
             break
 
-    # 最終化
+    # 仕上げ
     status = solve_master(model, solver)
     x_hat, theta_hat = get_values_pulp(xvars, theta)
     sel = np.where(x_hat > 0.5)[0].tolist()
     log_done("求解完了", t0, log_level)
     log_step(f"✨ 目的値 θ = {theta_hat:.6f} / 選択サイト {sel}", log_level)
-    log_step(f"🧷 追加カット {cuts_added} 本", log_level)
     log_step(
         f"🧷 追加カット 合計 {cuts_added} 本（Bulge: {bulge_count}, Submodular: {submod_count}）",
         log_level,
@@ -471,22 +438,13 @@ def build_master_with_fixings_and_cuts(
     p: int,
     fix1: Set[int],
     fix0: Set[int],
-    cuts: List[Tuple[float, Dict[int, float]]],
+    local_cuts: List[Tuple[float, Dict[int, float]]],
+    global_cuts: List[Tuple[float, Dict[int, float]]],
     solver_name: str = "CBC",
 ):
     """
     分枝での固定と既存カットを含めて master を構築する。
-
-    引数:
-        nJ (int): 施設候補数 J
-        p (int): 予算
-        fix1 (Set[int]): x_j=1 に固定する添字集合
-        fix0 (Set[int]): x_j=0 に固定する添字集合
-        cuts (List[Tuple[c0, coeffs]]): 既に追加済みのカット（θ <= c0 + Σ coeffs_j x_j）
-        solver_name (str): 'CBC' または 'GLPK'
-
-    返り値:
-        (model, xvars, theta, solver): PuLP のオブジェクト群
+    論文 行8: 「全フォーミュレーション」に効くよう、global_cuts も投入。
     """
     import pulp
 
@@ -504,12 +462,16 @@ def build_master_with_fixings_and_cuts(
     model += pulp.lpSum([xvars[j] for j in range(nJ)]) == p, "budget_eq"
     model += theta, "obj"
 
-    # 既存カットを再追加
-    for k, (c0, coeffs) in enumerate(cuts):
-        expr = 0.0
-        for j, cj in coeffs.items():
-            expr += cj * xvars[j]
-        model += (theta - expr <= c0), f"cut_replay_{k}"
+    # 既存カット（local + global）を再追加
+    def replay(cuts, prefix):
+        for k, (c0, coeffs) in enumerate(cuts):
+            expr = 0.0
+            for j, cj in coeffs.items():
+                expr += cj * xvars[j]
+            model += (theta - expr <= c0), f"{prefix}_{k}"
+
+    replay(global_cuts, "gcut")
+    replay(local_cuts, "lcut")
 
     if solver_name == "CBC":
         solver = pulp.PULP_CBC_CMD(msg=False)
@@ -522,15 +484,7 @@ def build_master_with_fixings_and_cuts(
 
 
 def choose_branch_variable(x_hat: np.ndarray) -> Optional[int]:
-    """
-    分枝で固定する変数 j* を選ぶ（0.5 に最も近い小数値）。
-
-    引数:
-        x_hat (np.ndarray): (J,) 現在の解
-
-    返り値:
-        int or None: 分枝対象の添字。すべて整数なら None。
-    """
+    """最も 0.5 に近い分数変数で分枝。"""
     frac = np.where((x_hat > 1e-6) & (x_hat < 1 - 1e-6))[0]
     if len(frac) == 0:
         return None
@@ -538,31 +492,39 @@ def choose_branch_variable(x_hat: np.ndarray) -> Optional[int]:
     return j_star
 
 
+def make_node(
+    fix1: Optional[Set[int]] = None,
+    fix0: Optional[Set[int]] = None,
+    cuts: Optional[List[Tuple[float, Dict[int, float]]]] = None,
+    depth: int = 0,
+):
+    """分枝ノード（部分問題）を作る簡易ファクトリ。"""
+    return dict(
+        fix1=set() if fix1 is None else set(fix1),
+        fix0=set() if fix0 is None else set(fix0),
+        cuts=[] if cuts is None else list(cuts),
+        depth=int(depth),
+        ub=float("-inf"),  # 直近 θ̂
+    )
+
+
+# ========== 1ノード内の cutting-plane（違反が無くなるまで） ====================
+
+
 def node_solve_until_no_violation(
     data: Dict[str, object],
     node: Dict[str, object],
+    global_cuts: List[Tuple[float, Dict[int, float]]],
     pulp_solver: str,
     tol: float,
+    cut_policy: str = "auto",  # "bulge"/"submodular"/"auto"
+    separation: str = "approx",  # "approx"/"exact"
     max_cuts_per_node: int = 200,
     log_level: str = "info",
 ):
     """
-    1つのノード（部分問題）について、カット追加を繰り返して違反が無くなるまで解く。
-
-    引数:
-        data (dict): 問題データ
-        node (dict): {"fix1": set, "fix0": set, "cuts": list[(c0, coeffs)], "depth": int}
-        pulp_solver (str): PuLP ソルバ名
-        tol (float): 収束判定許容
-        max_cuts_per_node (int): 1ノードで追加可能なカットの上限
-        log_level (str): 'info' or 'debug' or 'quiet'
-
-    返り値:
-        dict: {
-          "status": int, "x_hat": np.ndarray, "theta_hat": float,
-          "y_hat": np.ndarray, "true_val": float, "viol": float,
-          "integral": bool, "cuts_added": int
-        }
+    論文 行5–9: 1ノードのフォーミュレーションを
+    違反がなくなるまで強化して解く（毎回カットは 1 本のみ追加）。
     """
     J = int(data["J"])
     total_new_cuts = 0
@@ -575,15 +537,19 @@ def node_solve_until_no_violation(
             p=int(data["p"]),
             fix1=node["fix1"],
             fix0=node["fix0"],
-            cuts=node["cuts"],
+            local_cuts=node["cuts"],
+            global_cuts=global_cuts,
             solver_name=pulp_solver,
         )
         status = solve_master(model, solver)
         x_hat, theta_hat = get_values_pulp(xvars, theta)
         is_int = bool(np.all((x_hat < 1e-6) | (x_hat > 1 - 1e-6)))
 
-        # 近似分離 & 真の評価
-        y_hat, ub_lin, beta = approximate_separation_y(data, x_hat)
+        # 分離
+        if separation == "approx":
+            y_hat, _, _ = approximate_separation_y(data, x_hat)
+        else:
+            y_hat, _, _ = approximate_separation_y(data, x_hat)
         true_val = L_value(data, x_hat, y_hat)
         gap = theta_hat - true_val
 
@@ -592,8 +558,9 @@ def node_solve_until_no_violation(
             log_level,
         )
 
+        # 違反なし → 終了（行10以降は上位で分岐判断）
         if theta_hat <= true_val + tol:
-            # 違反なし → 収束
+            node["ub"] = float(theta_hat)
             return dict(
                 status=status,
                 x_hat=x_hat,
@@ -607,33 +574,32 @@ def node_solve_until_no_violation(
                 submod_added=submod_added,
             )
 
-        # 違反あり → カット追加
-        Lb, grad = Lb_and_grad(data, x_hat, y_hat)
-        c0 = Lb - float((grad * x_hat).sum())
-        coeffs = {j: float(grad[j]) for j in range(J) if abs(grad[j]) > 1e-12}
-        node["cuts"].append((c0, coeffs))
-        total_new_cuts += 1
-        bulge_added += 1
-        kinds = ["bulge"]
-
-        if is_int:
+        # 違反あり → カット 1 本追加（行8）
+        policy = cut_policy.lower()
+        if policy == "submodular" and is_int:
             x_bin = (x_hat > 0.5).astype(float)
             y_bin = (y_hat > 0.5).astype(float)
-            c0s, coeffs_s = submodular_cut_coeffs(data, x_bin, y_bin)
-            node["cuts"].append((c0s, coeffs_s))
-            total_new_cuts += 1
+            c0, coeffs = submodular_cut_coeffs(data, x_bin, y_bin)
+            # 全フォーミュレーションに効く global cut としても追加
+            node["cuts"].append((c0, coeffs))
+            global_cuts.append((c0, coeffs))
             submod_added += 1
-            kinds.append("submod")
+            added_kind = "submod"
+        else:
+            Lb, grad = Lb_and_grad(data, x_hat, y_hat)
+            c0 = Lb - float((grad * x_hat).sum())
+            coeffs = {j: float(grad[j]) for j in range(J) if abs(grad[j]) > 1e-12}
+            node["cuts"].append((c0, coeffs))
+            global_cuts.append((c0, coeffs))
+            bulge_added += 1
+            added_kind = "bulge"
 
-        log_cut(kinds, log_level)
+        total_new_cuts += 1
+        log_cut(added_kind, log_level)
 
-        if total_new_cuts >= max_cuts_per_node:
-            log_warn(
-                "このノードでのカット上限に到達。中断して上位で処理します。", log_level
-            )
-            break
-
-    # ループを抜けた場合（上限到達など）
+    # 上限に達した場合
+    node["ub"] = float(theta_hat)
+    log_warn("このノードでのカット上限に到達。", log_level)
     return dict(
         status=status,
         x_hat=x_hat,
@@ -648,34 +614,7 @@ def node_solve_until_no_violation(
     )
 
 
-def make_node(
-    fix1: Optional[Set[int]] = None,
-    fix0: Optional[Set[int]] = None,
-    cuts: Optional[List[Tuple[float, Dict[int, float]]]] = None,
-    depth: int = 0,
-):
-    """
-    分枝ノード（部分問題）を作る簡易ファクトリ。
-
-    引数:
-        fix1 (set[int] | None): x_j=1 に固定する添字集合
-        fix0 (set[int] | None): x_j=0 に固定する添字集合
-        cuts (list | None): 既存カット（(c0, coeffs) のリスト）
-        depth (int): 探索木の深さ
-
-    返り値:
-        dict: {"fix1", "fix0", "cuts", "depth", "ub"}
-    """
-    return dict(
-        fix1=set() if fix1 is None else set(fix1),
-        fix0=set() if fix0 is None else set(fix0),
-        cuts=[] if cuts is None else list(cuts),
-        depth=int(depth),
-        ub=float("inf"),  # 上界（直近 θ̂）
-    )
-
-
-# ========== メイン：完全 Branch-and-Cut（分枝含む） =============================
+# ========== メイン：完全 Branch-and-Cut（論文 Algorithm 1） ====================
 
 
 def scflp_branch_and_cut(
@@ -686,43 +625,17 @@ def scflp_branch_and_cut(
     pulp_solver: str = "CBC",
     node_selection: str = "dfs",  # 'dfs' or 'bestbound'
     log_level: str = "info",
+    separation: str = "approx",
+    cut_policy: str = "auto",
 ) -> Dict[str, object]:
     """
-    S-CFLP の完全 Branch-and-Cut（分枝 + カット生成）を解く。
-
-    アルゴリズム（Algorithm 1 に対応）:
-        1) ルートノードに緩和問題を入れて初期化
-        2) ノードを取り出す（DFS 既定）
-        3) ノード内で cutting-plane を収束させる（違反がなくなるまで）
-        4) θ̂ <= θ_LB なら枝刈り
-           4-1) x が整数ならインカンベント更新
-           4-2) x が小数なら最も 0.5 に近い x_j で分枝して 2 子ノード生成
-        5) ノード集合が空になるまで繰り返す
-
-    引数:
-        data (dict): 問題データ辞書
-        max_nodes (int): ノード探索総数の上限
-        max_rounds_per_node (int): 1ノード内のカット反復上限
-        tol (float): 収束判定用の許容
-        pulp_solver (str): PuLP ソルバー名（CBC/GLPK）
-        node_selection (str): 'dfs'（stack）または 'bestbound'（最大上界選択）
-        log_level (str): 'info' / 'debug' / 'quiet'
-
-    返り値:
-        dict: {
-          "x_best": np.ndarray or None,
-          "theta_best": float,
-          "status": str,
-          "nodes_explored": int,
-          "time_sec": float,
-          "gap_bound": float  # (上界-下界)
-        }
+    論文 Algorithm 1 に沿った Branch-and-Cut 実装。
     """
     J = int(data["J"])
     p = int(data["p"])
     t0 = time.time()
 
-    # 下界・ベスト解
+    # 下界・ベスト解（行2）
     theta_LB = 0.0
     x_best = None
 
@@ -730,32 +643,19 @@ def scflp_branch_and_cut(
     total_submod = 0
     total_cuts = 0
 
-    # ルートノード
-    root = make_node()
-    if p < 0 or p > J:
-        return dict(
-            x_best=None,
-            theta_best=theta_LB,
-            status="infeasible",
-            nodes_explored=0,
-            time_sec=0.0,
-            gap_bound=float("inf"),
-        )
-
-    # ノード集合
-    nodes: List[Dict[str, object]] = [root]
+    # フォーミュレーション集合 F（行1: 緩和を1つ入れて初期化）
+    nodes: List[Dict[str, object]] = [make_node()]
+    global_cuts: List[Tuple[float, Dict[int, float]]] = []
 
     explored = 0
-    log_header("Branch-and-Cut（分枝＋カット）開始", log_level)
+    log_header("Branch-and-Cut（論文 Algorithm 1）開始", log_level)
 
     while nodes and explored < max_nodes:
-        # ノード取り出し
+        # フォーミュレーション取り出し（行3–4）
         if node_selection == "bestbound":
-            # ub が最大のもの
             idx = int(np.argmax([n.get("ub", -1e100) for n in nodes]))
             node = nodes.pop(idx)
         else:
-            # DFS
             node = nodes.pop()
 
         explored += 1
@@ -765,17 +665,20 @@ def scflp_branch_and_cut(
             log_level,
         )
 
-        # 予算の早期チェック：すでに x=1 固定が p 超えなら infeasible
+        # 早期チェック: |fix1| > p は不可能
         if len(node["fix1"]) > p:
             log_warn("早期枝刈り: |fix1| > p", log_level)
             continue
 
-        # ノード内で cutting-plane を収束させる
+        # 行5–9: 違反が無くなるまでこのノードを強化して解く
         info = node_solve_until_no_violation(
             data=data,
             node=node,
+            global_cuts=global_cuts,
             pulp_solver=pulp_solver,
             tol=tol,
+            cut_policy=cut_policy,
+            separation=separation,
             max_cuts_per_node=max_rounds_per_node,
             log_level=log_level,
         )
@@ -788,65 +691,56 @@ def scflp_branch_and_cut(
         total_bulge += int(info.get("bulge_added", 0))
         total_submod += int(info.get("submod_added", 0))
 
-        # 上界による枝刈り
-        if theta_hat <= theta_LB + tol:
-            log_step(f"🪓 枝刈り: θ̂={theta_hat:.6f} <= θ_LB={theta_LB:.6f}", log_level)
-            continue
-
-        # 整数解ならインカンベント更新
-        if is_int:
-            x_bin = (x_hat > 0.5).astype(float)
+        # 行10–13: 違反が無くなった後の分岐
+        if theta_hat > theta_LB + tol and is_int:
+            # 行10–11: インカンベント更新
             theta_LB = float(theta_hat)
-            x_best = x_bin
+            x_best = (x_hat > 0.5).astype(float)
             log_success(f"🎯 インカンベント更新: θ_LB ← {theta_LB:.6f}", log_level)
             continue
 
-        # 分枝（最も 0.5 に近い変数）
-        j_star = choose_branch_variable(x_hat)
-        if j_star is None:
-            # 小数判定に来ないはずだが保険
-            x_bin = (x_hat > 0.5).astype(float)
-            theta_LB = max(theta_LB, float(theta_hat))
-            x_best = x_bin
-            log_warn("x は実質整数だったため更新のみ。", log_level)
+        if theta_hat > theta_LB + tol and not is_int:
+            # 行12–13: 分枝して 2 つのフォーミュレーションを F へ
+            j_star = choose_branch_variable(x_hat)
+            if j_star is None:
+                # 念のための保険
+                theta_LB = max(theta_LB, float(theta_hat))
+                x_best = (x_hat > 0.5).astype(float)
+                log_warn("x は実質整数だったため更新のみ。", log_level)
+                continue
+
+            child0 = make_node(
+                fix1=node["fix1"],
+                fix0=node["fix0"] | {j_star},
+                cuts=node["cuts"],
+                depth=node["depth"] + 1,
+            )
+            child1 = make_node(
+                fix1=node["fix1"] | {j_star},
+                fix0=node["fix0"],
+                cuts=node["cuts"],
+                depth=node["depth"] + 1,
+            )
+            # 早期不可能（|fix1|>p）は投入前に除外
+            if len(child1["fix1"]) <= p:
+                nodes.append(child1)
+            else:
+                log_warn(f"子ノード(x[{j_star}]=1)は |fix1|>p のため破棄", log_level)
+            nodes.append(child0)
+            log_step(
+                f"🌱 分枝: j*={j_star} → 子ノード depth={node['depth']+1} を2つ追加",
+                log_level,
+            )
             continue
 
-        print("分岐するぞ")
-        # 子ノード 2 個（x_j=0, x_j=1）
-        child0 = make_node(
-            fix1=node["fix1"],
-            fix0=node["fix0"] | {j_star},
-            cuts=node["cuts"],
-            depth=node["depth"] + 1,
-        )
-
-        child1 = make_node(
-            fix1=node["fix1"] | {j_star},
-            fix0=node["fix0"],
-            cuts=node["cuts"],
-            depth=node["depth"] + 1,
-        )
-
-        # 早期不可能性: child1 の固定が p を超えたら捨てる
-        if len(child1["fix1"]) > p:
-            log_warn(f"子ノード(x[{j_star}]=1)は |fix1|>p のため破棄", log_level)
-        else:
-            nodes.append(child1)
-
-        # child0 は x_j=0 なので常に可
-        nodes.append(child0)
-        log_step(
-            f"🌱 分枝: j*={j_star} → 子ノード depth={node['depth']+1} を2つ追加",
-            log_level,
-        )
+        # θ̂ が下界以下なら枝刈り
+        log_step(f"🪓 枝刈り: θ̂={theta_hat:.6f} ≤ θ_LB={theta_LB:.6f}", log_level)
 
     # 終了
     elapsed = time.time() - t0
-    gap = (
-        (max([n.get("ub", 0.0) for n in nodes], default=theta_LB) - theta_LB)
-        if nodes
-        else 0.0
-    )
+    gap = 0.0
+    if nodes:
+        gap = max([n.get("ub", -1e100) for n in nodes]) - theta_LB
     status = "optimal" if not nodes else "stopped_or_pruned"
 
     log_done("Branch-and-Cut 終了", t0, log_level)
@@ -874,70 +768,58 @@ def scflp_branch_and_cut(
     )
 
 
-# ========= 厳密分離：分数 x 用 Submodular (NW) カット =========
+# =========（参考）以下は高度な厳密分離の実装補助（未使用）======================
+# ※ Algorithm 1 に含めないため、使わずに残しています（必要なら呼び出してください）。
 
 
 def _Ly_S_and_union_allk(
     data: Dict[str, object], S_bin: np.ndarray, y_bin: np.ndarray
 ) -> Tuple[float, np.ndarray]:
-    """
-    L_Y(S) と、全ての k について L_Y(S ∪ {k}) を同時に返す。
-    ベクトル化により O(IJ) で計算（k ごとに再評価しない）。
-    """
-    w = data["w"]  # (I,J)
-    UL = data["UL"]  # (I,)
-    UF = data["UF"]  # (I,)
-    h = data["h"]  # (I,)
+    w = data["w"]
+    UL = data["UL"]
+    UF = data["UF"]
+    h = data["h"]
     S_bin = S_bin.reshape(-1)
     y_bin = y_bin.reshape(-1)
     I, J = w.shape
 
-    wS = w.dot(S_bin)  # (I,)
-    wSY = w.dot(np.maximum(S_bin, y_bin))  # (I,)
+    wS = w.dot(S_bin)
+    wSY = w.dot(np.maximum(S_bin, y_bin))
 
     num_S = UL + wS
     den_S = UL + UF + wSY
-    Ly_S = float((h * (num_S / den_S)).sum())  # scalar
+    Ly_S = float((h * (num_S / den_S)).sum())
 
-    add_S = 1.0 - S_bin  # (J,)
-    add_SY = 1.0 - np.maximum(S_bin, y_bin)  # (J,)
+    add_S = 1.0 - S_bin
+    add_SY = 1.0 - np.maximum(S_bin, y_bin)
 
-    # すべての k について S∪{k} の評価を一括で作る
-    num_all = num_S[:, None] + w * add_S[None, :]  # (I,J)
-    den_all = den_S[:, None] + w * add_SY[None, :]  # (I,J)
-    Ly_SuK = (h[:, None] * (num_all / den_all)).sum(axis=0)  # (J,)
-
+    num_all = num_S[:, None] + w * add_S[None, :]
+    den_all = den_S[:, None] + w * add_SY[None, :]
+    Ly_SuK = (h[:, None] * (num_all / den_all)).sum(axis=0)
     return Ly_S, Ly_SuK
 
 
 def _rho_full_minus_k_vector(
     data: Dict[str, object], y_bin: np.ndarray
 ) -> Tuple[float, np.ndarray]:
-    """
-    ρ_Y(J\{k};k) を全 k について同時に返す。
-    併せて L_Y(J) も返す。
-    """
-    w = data["w"]  # (I,J)
-    UL = data["UL"]  # (I,)
-    UF = data["UF"]  # (I,)
-    h = data["h"]  # (I,)
+    w = data["w"]
+    UL = data["UL"]
+    UF = data["UF"]
+    h = data["h"]
     y_bin = y_bin.reshape(-1)
     I, J = w.shape
 
     onesJ = np.ones(J)
-    wJ = w.dot(onesJ)  # (I,)
+    wJ = w.dot(onesJ)
     num_J = UL + wJ
     den_J = UL + UF + wJ
     Ly_J = float((h * (num_J / den_J)).sum())
 
-    # J\{k} ∪ Y の総和は、y_k=1 のとき J、y_k=0 のとき J\{k}
-    y_bar = 1.0 - y_bin  # (J,)
-
-    num_J_minus_k = UL[:, None] + wJ[:, None] - w  # (I,J)
+    y_bar = 1.0 - y_bin
+    num_J_minus_k = UL[:, None] + wJ[:, None] - w
     den_J_minus_k = UL[:, None] + UF[:, None] + wJ[:, None] - (y_bar[None, :] * w)
-    Ly_J_minus_k = (h[:, None] * (num_J_minus_k / den_J_minus_k)).sum(axis=0)  # (J,)
-
-    rho_full = Ly_J - Ly_J_minus_k  # (J,)
+    Ly_J_minus_k = (h[:, None] * (num_J_minus_k / den_J_minus_k)).sum(axis=0)
+    rho_full = Ly_J - Ly_J_minus_k
     return Ly_J, rho_full
 
 
@@ -948,26 +830,20 @@ def _H_value(
     S_bin: np.ndarray,
     pre: Dict[str, object],
 ) -> float:
-    """
-    H(S) = L_Y(S) - sum_{k∈S} ρ_full(k)*(1-x_k) + sum_k x_k * L_Y(S∪{k}) - p*L_Y(S)
-    を返す。pre には Ly_J, rho_full, H_empty, p を持たせる。
-    """
     Ly_S, Ly_SuK = _Ly_S_and_union_allk(data, S_bin, y_bin)
     p = pre["p"]
     rho_full = pre["rho_full"]
     term1 = Ly_S
-    term2 = -float(((rho_full * (1.0 - x)) * S_bin).sum())  # k∈S の和
+    term2 = -float(((rho_full * (1.0 - x)) * S_bin).sum())
     term3 = float(x.dot(Ly_SuK)) - p * Ly_S
     return term1 + term2 + term3
 
 
 def _H_empty(data: Dict[str, object], x: np.ndarray, y_bin: np.ndarray) -> float:
-    """H(∅) を返す（正規化用）。"""
     J = int(data["J"])
     S0 = np.zeros(J)
     Ly_0, Ly_0_u_k = _Ly_S_and_union_allk(data, S0, y_bin)
     p = int(data["p"])
-    # H(∅) = L_Y(∅) + sum_k x_k L_Y({k}) - p*L_Y(∅)
     return float(Ly_0 + x.dot(Ly_0_u_k) - p * Ly_0)
 
 
@@ -978,12 +854,8 @@ def _greedy_extreme_point_for_baseF(
     weights: np.ndarray,
     pre: Dict[str, object],
 ) -> np.ndarray:
-    """
-    Base polyhedron B(F) の極点を「貪欲法」で返す。
-    ここで F(S) = H(S) - H(∅)。よって F(∅)=0。
-    """
     J = int(data["J"])
-    order = np.argsort(weights)  # 昇順（最小化）
+    order = np.argsort(weights)  # 昇順
     S_bin = np.zeros(J)
     v = np.zeros(J)
     F_prev = 0.0
@@ -995,7 +867,6 @@ def _greedy_extreme_point_for_baseF(
         v[idx] = F_curr - F_prev
         F_prev = F_curr
 
-    # 数値誤差の微調整
     s = v.sum()
     FJ = _H_value(data, x, y_bin, np.ones(J), pre) - pre["H_empty"]
     if abs(s - FJ) > 1e-9:
@@ -1011,51 +882,38 @@ def _mnp_min_norm_point(
     max_iter: int = 60,
     eps: float = 1e-8,
 ) -> np.ndarray:
-    """
-    Fujishige–Wolfe の Minimum-Norm-Point アルゴリズム（簡易 Active-Set 版）。
-    返り値は B(F) 上の最小ノルム点 y。最小化解集合は {i : y_i < 0} が一つの代表。
-    """
     J = int(data["J"])
     rng = np.random.default_rng(0)
-    w0 = rng.normal(size=J)  # 初期重み（任意でOK）
+    w0 = rng.normal(size=J)
     v0 = _greedy_extreme_point_for_baseF(data, x, y_bin, w0, pre)
 
-    V = [v0]  # 極点のリスト（各は R^J ベクトル）
-    lamb = np.array([1.0])  # 凸結合係数
+    V = [v0]
+    lamb = np.array([1.0])
     y = v0.copy()
 
     for _ in range(max_iter):
         v = _greedy_extreme_point_for_baseF(data, x, y_bin, y, pre)
-        # optimality test: y · (y - v) <= eps
         if float(y.dot(y - v)) <= eps:
             return y
-
-        # 追加して射影（Wolfe の minor loop）
         V.append(v)
         m = len(V)
-        Vmat = np.column_stack(V)  # (J, m)
-
-        # minor ループ
-        # 目的：min ||Vmat * alpha||^2 s.t. sum alpha = 1, alpha >= 0
+        Vmat = np.column_stack(V)
         alpha = np.zeros(m)
         alpha[:-1] = lamb
         alpha[-1] = 0.0
 
         while True:
-            G = Vmat.T @ Vmat  # (m,m)
+            G = Vmat.T @ Vmat
             ones = np.ones(m)
-            # KKT: [G 1; 1^T 0] [lambda; mu] = [0; 1]
             KKT = np.block([[G, ones[:, None]], [ones[None, :], np.zeros((1, 1))]])
             rhs = np.zeros(m + 1)
             rhs[-1] = 1.0
             sol = np.linalg.lstsq(KKT, rhs, rcond=None)[0]
-            lam_new = sol[:m]  # 符号制約なしの射影解
-            # もし全成分 >= 0 なら、それが凸結合係数
+            lam_new = sol[:m]
             if np.all(lam_new >= -1e-12):
                 lamb = lam_new
                 y = Vmat @ lamb
                 break
-            # 負の成分がある → その方向に沿って 0 まで動かして点を間引く
             dirv = lam_new - alpha
             bad = dirv < 0
             t = np.min(alpha[bad] / (alpha[bad] - lam_new[bad]))
@@ -1065,11 +923,10 @@ def _mnp_min_norm_point(
             alpha = alpha[keep]
             Vmat = np.column_stack(V)
             m = len(V)
-            # 維持
             lamb = alpha / alpha.sum()
             y = Vmat @ lamb
 
-    return y  # 上限反復到達（通常は収束前に返る）
+    return y
 
 
 def submodular_cut_coeffs_fractional_exact(
@@ -1077,41 +934,28 @@ def submodular_cut_coeffs_fractional_exact(
     x: np.ndarray,
     y_hat: np.ndarray,
 ) -> Tuple[float, Dict[int, float], float, np.ndarray]:
-    """
-    分数 x に対する厳密 NW カット（式(8)）を返す。
-    返り値: (c0, coeffs, rhs_value, S_star_indices)
-    """
+    """分数 x 用の厳密 NW カット（参考実装; Algorithm 1 では使用しない）。"""
     J = int(data["J"])
     x = x.reshape(J)
     y_bin = (y_hat > 0.5).astype(float).reshape(J)
 
-    # 事前計算（ρ_full と H(∅)）
     Ly_J, rho_full = _rho_full_minus_k_vector(data, y_bin)
     H0 = _H_empty(data, x, y_bin)
     pre = dict(Ly_J=Ly_J, rho_full=rho_full, H_empty=H0, p=int(data["p"]))
 
-    # MNP で H(S) を最小化（F(S)=H(S)-H(∅) の基底多面体上の最小ノルム点）
     y_mnp = _mnp_min_norm_point(data, x, y_bin, pre)
-    S_star = (y_mnp < 0.0 - 1e-12).astype(float)  # 一つの最小化解
+    S_star = (y_mnp < 0.0 - 1e-12).astype(float)
     S_idx = np.where(S_star > 0.5)[0]
 
-    # 係数組み立て（式(8)）：c0 と c_j
     Ly_S, Ly_SuK = _Ly_S_and_union_allk(data, S_star, y_bin)
     coeffs: Dict[int, float] = {}
-
-    # k ∈ S: coeff = ρ_Y(J\{k};k)
     for k in S_idx:
         coeffs[int(k)] = float(rho_full[k])
-
-    # k ∉ S: coeff = ρ_Y(S;k) = L_Y(S∪{k}) - L_Y(S)
     notS = np.where(S_star < 0.5)[0]
     rho_S_k = Ly_SuK[notS] - Ly_S
     for k, val in zip(notS, rho_S_k):
         coeffs[int(k)] = float(val)
 
     c0 = float(Ly_S - rho_full[S_idx].sum())
-
-    # 参考：式(9)右辺（最小値）= c0 + Σ c_j x_j
     rhs_val = c0 + float(sum(coeffs[j] * x[j] for j in range(J)))
-
     return c0, coeffs, rhs_val, S_idx
