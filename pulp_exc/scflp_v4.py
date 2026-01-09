@@ -321,7 +321,7 @@ def log_done(msg: str, tstart: float, level: str):
 def scflp_solve(
     data: Dict[str, object],
     max_rounds: int = 200,
-    tol: float = 1e-8,
+    tol: float = 1e-12,
     pulp_solver: str = "CBC",
     log_level: str = "info",
     separation: str = "approx",  # "approx" or "exact"（exactは未実装）
@@ -628,9 +628,9 @@ def node_solve_until_no_violation(
 
 def scflp_branch_and_cut(
     data: Dict[str, object],
-    max_nodes: int = 10_000,
+    max_nodes: int = 30,
     max_rounds_per_node: int = 200,
-    tol: float = 1e-8,
+    tol: float = 1e-12,
     pulp_solver: str = "CBC",
     node_selection: str = "dfs",  # 'dfs' or 'bestbound'
     log_level: str = "info",
