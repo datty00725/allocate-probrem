@@ -1,0 +1,3378 @@
+\documentclass[12pt,dvipdfmx]{jsarticle}
+%\usepackage{subcaption}
+\usepackage{graphicx}
+\usepackage{comment}
+\usepackage{amsmath,amssymb}
+\usepackage{amsthm}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{fancybox}
+\usepackage{longtable}
+% \usepackage{color}
+\usepackage{lscape}
+\usepackage{caption}
+\usepackage{float}
+\usepackage{bm}
+\usepackage{subcaption}
+\usepackage{natbib}
+\usepackage{float}
+
+
+
+\newtheoremstyle{mystyle}%   % スタイル名
+{}%b                     % 上部スペース
+{}%                      % 下部スペース
+{\itshape}%              % 本文フォント
+{}%                      % 1行目のインデント量
+{\bfseries}%             % 見出しフォント
+{. }%                     % 見出し後の句読点
+{ }%                     % 見出し後のスペース
+{\thmname{#1}\thmnumber{ #2}\thmnote{ #3}}
+\theoremstyle{mystyle}
+\theoremstyle{claim}
+\newtheorem{dfn}{Definition}[section]
+\newtheorem*{dfn*}{Definition}
+\newtheorem{thm}{Theorem}[section]
+\newtheorem{clm}{Claim}[section]
+\newtheorem*{clm*}{Claim}
+\newtheorem{ass}{Assumption}[section]
+\newtheorem*{ass*}{Assumption}
+\newtheorem{prop}{Proposition}[section]
+\newtheorem*{prop*}{Proposition}
+\newtheorem{lem}{Lemma}[section]
+\newtheorem*{lem*}{Lemma}
+\newtheorem*{thm*}{Theorem}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+%\usepackage{algorithmic}
+%\usepackage{algorithm}
+
+
+\usepackage{algorithm}%
+\usepackage[noend]{algpseudocode}%
+% \usepackage{caption}
+\captionsetup[algorithm]{labelsep=space}
+%
+% augmenting the commands of algorithmicx package
+\algnewcommand\algorithmicinput{{\bfseries\gtfamily Inputs}}%
+%\algnewcommand\algorithmicoutput{{\bfseries\gtfamily 出力}}%
+\algnewcommand\AlgInput{\item[\algorithmicinput]}%
+\algnewcommand\AlgOutput{\item[\algorithmicoutput]}%
+\algrenewcommand\Return{\State\textbf{return} }%
+\newcommand{\To}{\textbf{to}}
+
+
+\usepackage{regexpatch}
+\makeatletter
+\regexpatchcmd{\@xthm}
+{\c{csname} the\cP\#3}
+{\c{@arabic}\c{@xp}\c{@nx}\c{csname} c@\cP\#3}{}{}
+\makeatother
+
+
+
+
+
+
+
+
+
+
+
+
+\input{preamble.tex}
+
+% \numberwithin{equation}{subsection}
+
+
+
+
+\begin{document}
+
+\begin{center}
+{\Large 令和8年度修士論文}\\
+\vspace{20truemm}
+{\huge 競争的施設配置問題における}\\
+\vspace{5truemm}
+{\huge 突然変異付きラグランジュ勾配降下/上昇法}\\
+\vspace{5truemm}
+{\huge に関する研究}\\
+\vspace{20truemm}
+{\LARGE 
+電気通信大学\\
+\vspace{5truemm}
+大学院 情報理工学研究科 情報学専攻\ }\\
+\vspace{10truemm}
+{\LARGE
+\begin{eqnarray*}
+学籍番号&: &2430003\\
+氏名&: &足立\ \ 幸大\\
+指導教員&:&岩崎\ \ 敦\ \ 准教授\\
+提出年月日&: &令和xx年xx月xx日\\
+\end{eqnarray*}
+}
+\end{center}
+
+
+\newpage
+\tableofcontents
+
+\newpage
+\addtocontents{toc}{\protect\setcounter{tocdepth}{1}}
+\section{序論}
+
+現実の意思決定問題は不確実性の下で行われることが多い. 例えば, 将来の需要・所得は観測データから推定されるが, 推定誤差や構造変化により真の分布からの乖離は避けられない. また, 市場での競争のように他者の意思決定が自らの利得を左右する状況では, 相手の意思決定を考慮した最適化が必要となる. このような不確実性や競争性を含む問題は, しばしばmax--min型の鞍点問題として統一的に捉えられ, ロバスト制御やゲーム理論, ロバスト最適化の枠組みで分析される. 
+
+一方で, max--min 問題や二段階計画問題は一般に計算困難であり, 大規模問題に対して厳密解法を適応することは難しい. 特に, 変数が離散的であったり, プレイヤ間のカップリング制約を含む場合には実行可能領域の直積構造が失われ, 単純な分解や射影に基づく反復法の設計が容易ではない. したがって, (i) 問題構造を保ったまま計算可能な連続緩和へ落とし込むこと, (ii) 鞍点探索に適した主双対型アルゴリズムを設計し, 大規模でも安定して動作させることの両面が重要となる. 
+
+本論文は上記の問題意識のもとで二部構成であり, モデルの不確実性, および2者間の競争をmax--min問題として統一的に扱い, 鞍点問題として解くことを目的とする. 
+第I部では, モデルの不確実性を明示的に取り込んだ動的意思決定問題を扱い, 確率モデルの摂動を許した上で最適行動がどのように変化するかを分析する. この枠組みは意思決定者と, その意思決定者の考えるショックの二者によるmax--min問題として表現でき, 制御問題として数値計算可能な形に帰着できる. 
+第II部では, 2社間の競争的施設配置問題を扱う. 多項ロジット型の顧客選択モデルに基づく市場のシェア率最大化を目的として, リーダが先行して施設を配置し, フォロワが最適反応を返す逐次ゲームを定義する. この問題は二段階計画問題として記述できるが, 計算困難であるため, 本稿では敵対的な max--min 形式へ再定式化し, さらに連続緩和を導入することで鞍点問題として扱う. この際, カップリング制約が直積構造を壊すため, ラグランジュ緩和に基づく主双対更新が本質的となる. そこで本稿では, 勾配降下/上昇法を基点に, 解の退化を避けるための突然変異項を組み込んだ反復法を提案し, 大規模問題に対する計算効率と解品質を検証する. 
+\part{不正確な特定化を含む恒常所得モデルに関する研究}
+
+\begin{comment}
+\section{先行研究}
+本研究は, マクロ経済学を構成する基礎の１つである恒常所得モデルの拡張を議論する. マクロ経済学は, 政府, 企業, そして家計の効用をモデル化し, それぞれが効用を最大化するように振る舞った際の帰結を分析し, 金融や景気といったその動きや構造が捉えにくい現象に対して示唆を与えることを目的とする. この中で恒常所得モデルとは, 家計が日々の所得をどれだけ消費に割り振り, どれだけ投資や貯蓄に割り振るかをリカッチ方程式で表現する, マクロ経済学の基盤を構成するモデルであり, 様々な拡張が行われている~\cite{advancedmacro}. 
+
+恒常所得モデルは, 任意の時点で取引される財が一種類のみであり, 経済にはただ一人の個体が存在すると仮定される. さらにこの個人は永遠に生存すると想定されている. また将来の所得が一定の確率分布に従い, 家計はその正しい確率分布を知っていると仮定する. しかし実際には, 家計が将来の所得を見誤った状態で消費を決定していることも起こりえる. 例えば, バブルの崩壊やリーマンショックの前の好景気において, 家計は将来の所得を正しく認識できていたとは言えない. そこで将来の所得に対する確率分布（モデル）を家計が特定するとき, 必ずしも正確に特定できるとは限らないケースにおけるモデル化と解法を提案するのが本研究の目的である. 
+
+本研究において, 家計の行動と消費の選好を正確に表すモデルの存在は不可欠である. Hall~\cite{hall}による恒常所得モデルは, このようなモデルの中でも特筆すべきものの一つである. このモデルでは家計が未来の収入を予測し, その予測に基づいて現在の消費を最適化する概念を取り入れている. 恒常所得とは, 長期的な視点で見たときの平均的な収入を指し, 一時的な変動からは影響を受けにくい. したがって, このモデルでは家計は短期的な収入の変動に動じることなく, 恒常所得を基にした計画的な消費を行うとされる. 
+
+また恒常所得モデルを用いて現在多くの研究がなされている分野としてRetirement Saving Puzzleが挙げられる. 通常人々は若い時期に働き, 収入を得て, 老後の生活費のために貯蓄をする. そして引退後はそれまでに蓄積した資産を使って生活費を賄う. 恒常所得モデルによると高齢者は年々資産を減らしているはずであり, 彼らは死亡時に資産を完全に使い果たすはずである. 
+
+しかし先行研究~\cite{NBERw0930,WhatAccountsfor,wakabayashi2008retirement}に多くの引退後の高齢者が消費を抑え引き続き財産を増やしているか, あるいは財産を使い始めているが, その減少の速度が予想よりも遅く, 人生の終わりまでに全財産を使い切るには不十分であることが明らかとなった. 
+このような, 引退が家計消費・貯蓄行動に大きな影響を与えていることはRetirement Saving Puzzleと呼ばれている. 家計の消費が生涯を通じて一定となることを主張する恒常所得モデルはRetirement Saving Puzzleにより限界があると指摘されている. 
+
+一方でRetirement Saving Puzzleそのものに疑問を呈する研究も存在する. Hurd and Rohwedderは, アメリカのHealth and Retirement Surveyという詳細なパネルデータを使用し, 退職期における消費調査を行った結果, 退職後の非耐久消費品の支出が大きく減少していないことを指摘した~\cite{Hurd2008TheAO}. Aguiar and Hurstは, 引退後に支出は減少するが, それは支出と消費の違いに着目することにより恒常所得モデルの枠組みで説明可能と主張している~\cite{NBERw10307}. 彼らは, 引退により余暇時間が増加することで, 食料品の買い物や調理に費やす時間が大幅に増加するという仮定をたて, アメリカ合衆国における家計のカロリー摂取データを用いて分析した. 結果, 引退後における支出額は低下しても食料品の消費水準は変化しておらず, 消費量そのものは一定であるという結果を得ている. 
+
+上記のような退職後に消費が大幅に減少するという現象が実際に起きているのか, またその現象が恒常所得モデルで説明できるのかについては, 高齢者を対象とした新しいデータの収集や, 支出と実際の消費を区別するなど, 理論モデルを拡張することによって新しい進展が見られている. 
+
+本研究ではその前段階として消費の平滑化に焦点を当てる. ここで期待利得の最大化のみを目的にしているのにもかかわらず費を特定の範囲内に維持するために貯蓄を取り崩したり, 投資活動を控えるという行動を採る様子の再現を目標とする. 
+
+
+\subsection{恒常所得モデル}
+まず初めに恒常所得モデルにおける家計の消費と貯蓄の間の選好を詳細に検討する. 家計の持つ離散時間$t\in \mathbb{N}_{+}$までの情報における期待値を$\mathbb{E}_t$とする. 時間$t$での消費を$c_t$, 貯蓄を$k_t$, 初期賦与を$d_t$とする. また$k_t$が負の時は借金額を表し, 無限に借金が可能であるとする. $\gamma$は消費の飽和点であり, これ以上の消費は, 家計の満足度を飽和させてしまうため, 効用を増加させないものとする. 割引因子を$\beta \in(0,1)$とする. 
+
+恒常所得モデルでは, 時間$t$において家計は初期賦与(endowment) $d_t$ を受け取り, それを消費(consumption) $c_t$ と貯蓄(saving) $k_t$ の間で配分し
+\begin{equation}\label{eq:kouyou in model}
+\mathbb{E}_0\left[\sum_{t=0}^{\infty} -\beta^t (\gamma-c_t)^2\right],
+\end{equation}
+を最大化することを目指す. また家計の$d_t$ はそれ以前の時点での初期賦与に依存する確率過程である. この初期賦与をもとに家計は次の差分方程式を基に$t$期の貯蓄, 消費の分配を決定する:
+
+    \begin{align}\label{eq:huriwake}
+    k_t+c_t & =R k_{t-1}+d_t , \\ \label{eq:endowment}
+    d_{t+1} & =\mu_d(1-\rho)+\rho d_t+c_d\hat{\epsilon}_{t+1} .
+    \end{align}
+    ここで$R>1$は$t-1$終了時に保有している$k_{t-1}$の金利である. $| \rho | <1$は$d_t$の持続性を表す自己回帰係数であり, この値が大きいほど$d_t$の値が$d_{t+1}$に大きな影響を与えることを意味する. $\hat{\epsilon}_{t+1}$はi.i.dに従う標準誤差であり, その誤差は標準正規分布$\mathcal{N}(0,1)$に従う. $\mu_d$は初期賦与の全体平均である. \par
+
+
+ここで式~\eqref{eq:huriwake}および~\eqref{eq:endowment}を新たな状態変数$y_t$と制御変数$u_t$をもちいて変形する. 状態変数$y_t$を$y_t=\left[\begin{array}{lll}1 & d_t & k_{t-1}\end{array}\right]^{\prime}$, $u_t = \left[\begin{array}{ll}\gamma - c_t & \hat{\epsilon}_{t+1}\end{array}\right]^{\prime}$とすると式~\eqref{eq:huriwake}および~\eqref{eq:endowment}は以下のように1つの式で書き換えることが可能である: $y_{t+1}=A y_t+B u_t
+    $,
+    \begin{multline}\label{eq:state nomis AB}
+        \left[\begin{array}{c}
+        1 \\
+        d_{t+1} \\
+        k_t
+        \end{array}\right]=\left[\begin{array}{ccc}
+        1 & 0 & 0 \\
+        (1-\rho) \mu_d & \rho & 0 \\
+        -\gamma & 1 & R
+        \end{array}\right]\left[\begin{array}{c}
+        1 \\
+        d_t \\
+        k_{t-1}
+        \end{array}\right]+\left[\begin{array}{ll}
+        0&0 \\
+        0 &c_d\\
+        1&0
+        \end{array}\right]\left[\begin{array}{cc}\gamma - c_t \\ \hat{\epsilon}_{t+1}\end{array}\right] .
+    \end{multline}
+
+
+ここで家計が無限に借金をしないようにポンジ・スキームを禁止させる. 恒常所得モデルにおいては, 家計の借入れや貯蓄の慣行を考慮する必要がある. この文脈において, ポンジ・スキームの禁止条件は特に重要な役割を果たしている. ポンジ・スキームとは, 新規の投資家からの資金を使用して早期の投資家にリターンを支払う形式の投資詐欺を指す. 経済モデルにおけるポンジ・スキーム禁止条件は, 家計が無限に借金を転がし続けること, すなわち過去の借金を返済するために新たに借り入れを続けることを禁止するものである. ポンジ・スキームを抑制する条件式は次式である:
+%$\mathbb{E}_0\left[\sum_{t=0}^{\infty} \beta^t k_t^2\right]<\infty$
+\begin{equation}\label{eq:ponji}
+\mathbb{E}_0\left[\sum_{t=0}^{\infty} \beta^t k_t^2\right]<\infty .
+\end{equation}
+この式は未来の債務レベルの現在価値が有限であることを確認するものである. この条件式は, 家計が持続可能な借入れ戦略を維持していること, すなわち, 永遠に制約なく借金を増やし続けることがないことを保証するものである. 
+
+したがって不正確な特定化を含まない恒常所得モデルは以下となる: \begin{equation}\label{eq:PIM nosig problem}
+    \begin{aligned}
+       \max _{\left\{u_t\right\}_{t=0}^{\infty}}  &\mathbb{E}_0\left[\sum_{t=0}^{\infty} -\beta^t(\gamma-c_t)^2\right] \\
+        \text{s.t.} \ \ \  y_{t+1}&=Ay_t+Bu_t\\
+        \mathbb{E}_0&\left[ \sum_{t=0}^{\infty} \beta^t k_t^2\right]<\infty.
+    \end{aligned}
+\end{equation}
+\subsection{線形二次レギュレータ}
+線形二次レギュレータ(Linear Quadratic Regulator, LQR) は, 線形時不変系における制御の問題を解決するための解法である. 
+\begin{definition}
+    線形二次レギュレータとは可制御性を満たす係数行列$A,B$で定義される線形時不変系 $y_{t+1}=A y_t+B u_t$に対して, 適切に選ばれた正定対称な重み行列 $Q, R$ を用いた 2次形式評価関数
+    \begin{equation}\label{eq:J}
+\mathbb{E}_0 \sum_{t=0}^{\infty} \beta^t\left\{y_t^{\prime} R y_t+u_t^{\prime} Q u_t\right\},     
+\end{equation}
+    を最小にする制御入力 $u_t=-Fy_t$ を求める問題である~\cite{hansen2008robustness}.ここで$F$は
+    $
+        F=\beta\left(R+\beta B^{\prime} P B\right)^{-1} B^{\prime} P A
+    $
+    で求めることができ, 最適レギュレータと呼ばれる. ただし$P$はリカッチ方程式の解で正定値行列になる必要があり, 
+    $
+        P=Q+\beta A^{\prime} P A-\beta^2 A^{\prime} P B\left(R+\beta B^{\prime} P B\right)^{-1} B^{\prime} P A
+    $を満たす. 
+\end{definition}
+
+また$P$は計算機による反復法を用いて算出することが可能である. ここの具体的な導出は~\ref{sec:リカッチ方程式}節で議論する. この計算手法を用いると係数行列$A,B$と重み$Q,R$を基に迅速に最適レギュレータを算出することが可能となる~\cite{kunimatu2016}. 
+    %\item 具体的な導出方法は~\ref{sec:最適レギュレータ}を参照せよ.  
+    
+不確実性を含まない恒常所得モデルをLQRで表現するため, 以下のように変数変換を行う:
+    \begin{equation*}
+\begin{aligned}
+Q&=\begin{pmatrix}
+1 & 0 \\
+0 & 0 \\
+
+\end{pmatrix} ,\\
+R &= \begin{pmatrix}
+0 & 0 & 0 \\
+0 & 0 & 0 \\
+0 & 0 & 0
+\end{pmatrix}.
+\end{aligned}
+\end{equation*}
+すると式~\eqref{eq:PIM nosig problem}は以下のように書き換えることができる:
+\begin{equation}\label{eq:LQR nomis}
+    \begin{aligned}
+        \max_{\left\{u_t\right\}_{t=0}^{\infty}} & \mathbb{E}_0 \sum_{t=0}^{\infty} -\beta^t\left\{y_t^{\prime} R y_t+u_t^{\prime} Q u\right\}     \\
+        \text{s.t.} \ \ \  y_{t+1}&=A y_t+ B u_t .
+    \end{aligned}
+\end{equation}
+しかしこの設定のままでは式~\eqref{eq:ponji}がLQRで考慮されていない為, Rの$(3,3)$要素に$10^{-9}$程度の十分に小さい正則化要素$\epsilon>0$を加えることで$k_t^2$にペナルティを課しこの問題を解消する. 
+
+\subsection{リカッチ方程式}\label{sec:リカッチ方程式}
+式~\eqref{eq:LQR nomis}をベルマン方程式に変換する. 目的関数を\begin{equation}\label{eq:LQR nomis value function}
+-y_0 P y_0-p=\max_{\left\{u_t\right\}_{t=0}^{\infty}}  \mathbb{E}_0 \sum_{t=0}^{\infty} -\beta^t\left\{y_t^{\prime} R y_t+u_t^{\prime} Q u_t\right\} ,
+\end{equation}
+    とおく. 定数$p$は$C$に依存し, 極値からの誤差を表す. またModified certainty equivalence principle~\cite{hansen2004certainty}より, $\epsilon_{t+1} \equiv 0$のように設定してもリカッチ方程式で求まる$P$の値に影響はしない為, 以降$\epsilon_{t+1} \equiv 0$として分析を進める. 加えて$-y^{\prime} P y-p$より$p$を除外しても意思決定には問題ないことも注意する. すると式~\eqref{eq:LQR nomis value function}に対して以下のベルマン方程式を考えることができる:
+    \begin{equation}\label{eq:bellman LQR nomis}
+\begin{aligned}
+-y^{\prime} P y&=\max_{u}\left\{-y^{\prime} Q y-u^{\prime} Ru-\beta (A y+B u)^\prime P (A y+B u)\right\} \\
+\text {s.t.}   y^*&=A y+B u .
+\end{aligned}
+\end{equation}
+ここで*は次期の値であることを表している. また式~\eqref{eq:bellman LQR nomis}に対し二次形式の微分公式, $\frac{\partial y^{\prime} A y}{\partial y}=\left(A+A^{\prime}\right) y , \frac{\partial y^{\prime} B z}{\partial y}=B z, \frac{\partial y^{\prime} B z}{\partial z}=B^{\prime} y$を用いて一階条件を計算すると, $\left(R+\beta B^{\prime} P B\right) u=-\beta B^{\prime} P A y$となる. これを$u$について解くと$u=-Fy$もしくは
+\begin{equation}\label{eq:optimal decision}
+    u=-\beta\left(R+\beta B^{\prime} P B\right)^{-1} B^{\prime} P A y ,
+\end{equation}と表すことができる. ここで$F$は最適レギュレータと呼ばれている. またこの式~\eqref{eq:optimal decision}を式~\eqref{eq:bellman LQR nomis}の目的関数右辺に代入し整理すると
+\begin{equation}\label{eq:P}
+   P=Q+\beta A^{\prime} P A-\beta^2 A^{\prime} P B\left(\tilde{R}+\beta B^{\prime} P B\right)^{-1} B^{\prime} P A ,
+\end{equation}
+を得る. 式~\eqref{eq:P}はリカッチ方程式と呼ばれる. ただし$P$はリカッチ方程式の解で正定値行列になる必要がある. 
+\end{comment}
+
+
+本研究は, マクロ経済学を構成する基礎の１つである恒常所得モデルの拡張を議論する. マクロ経済学は, 政府, 企業, そして家計の効用をモデル化し, それぞれが効用を最大化するように振る舞った際の帰結を分析し, 金融や景気といったその動きや構造が捉えにくい現象に対して示唆を与えることを目的とする. この中で恒常所得モデルとは, 家計が日々の所得をどれだけ消費に割り振り, どれだけ投資や貯蓄に割り振るかをリカッチ方程式で表現する, マクロ経済学の基盤を構成するモデルであり, 様々な拡張が行われている~\citep{advancedmacro}. 
+
+恒常所得モデルは, 任意の時点で取引される財が一種類のみであり, 経済にはただ一人の個体が存在すると仮定される. さらにこの個人は永遠に生存すると想定されている. また将来の所得が一定の確率分布に従い, 家計はその正しい確率分布を知っていると仮定する. しかし実際には, 家計が将来の所得を見誤った状態で消費を決定していることも起こりえる. 例えば, バブルの崩壊やリーマンショックの前の好景気において, 家計は将来の所得を正しく認識できていたとは言えない. そこで将来の所得に対する確率分布（モデル）を家計が特定するとき, 必ずしも正確に特定できるとは限らないケースにおけるモデル化と解法を提案するのが本研究の目的である. 
+
+本研究において, 家計の行動と消費の選好を正確に表すモデルの存在は不可欠である. ~\citet{hall}による恒常所得モデルは, このようなモデルの中でも特筆すべきものの一つである. このモデルでは家計が未来の収入を予測し, その予測に基づいて現在の消費を最適化する概念を取り入れている. 恒常所得とは, 長期的な視点で見たときの平均的な収入を指し, 一時的な変動からは影響を受けにくい. したがって, このモデルでは家計は短期的な収入の変動に動じることなく, 恒常所得を基にした計画的な消費を行うとされる. 
+
+また恒常所得モデルを用いて現在多くの研究がなされている分野として退職消費パズル(Retirement Saving Puzzle)が挙げられる. 通常人々は若い時期に働き, 収入を得て, 老後の生活費のために貯蓄をする. そして引退後はそれまでに蓄積した資産を使って生活費を賄う. 恒常所得モデルによると高齢者は年々資産を減らしているはずであり, 彼らは死亡時に資産を完全に使い果たすはずである. 
+
+しかし先行研究~\citep{NBERw0930, WhatAccountsfor, wakabayashi2008retirement}に多くの引退後の高齢者が消費を抑え引き続き財産を増やしているか, あるいは財産を使い始めているが, その減少の速度が予想よりも遅く, 人生の終わりまでに全財産を使い切るには不十分であることが明らかとなった. 家計の消費が生涯を通じて一定となることを主張する恒常所得モデルは退職消費パズルにより限界があると指摘されている. 
+
+一方で退職消費パズルそのものに疑問を呈する研究も存在する. ~\citet{Hurd2008TheAO}は, アメリカのHealth and Retirement Surveyという詳細なパネルデータを使用し, 退職期における消費調査を行った結果, 退職後の非耐久消費品の支出が大きく減少していないことを指摘した. ~\citet{NBERw10307}は, 引退後に支出は減少するが, それは支出と消費の違いに着目することにより恒常所得モデルの枠組みで説明可能と主張している. 彼らは, 引退により余暇時間が増加することで, 食料品の買い物や調理に費やす時間が大幅に増加するという仮定をたて, アメリカ合衆国における家計のカロリー摂取データを用いて分析した. 結果, 引退後における支出額は低下しても食料品の消費水準は変化しておらず, 消費量そのものは一定であるという結果を得ている. 
+
+上記のような退職後に消費が大幅に減少するという現象が実際に起きているのか, またその現象が恒常所得モデルで説明できるのかについては, 高齢者を対象とした新しいデータの収集や, 支出と実際の消費を区別するなど, 理論モデルを拡張することによって新しい進展が見られている. 
+
+本研究ではその前段階として消費の平滑化に焦点を当てる. ここで期待利得の最大化のみを目的にしているのにもかかわらず費を特定の範囲内に維持するために貯蓄を取り崩したり, 投資活動を控えるという行動を採る様子の再現を目標とする. 
+
+
+現実のデータや現象を説明するために使用される数学的モデルが, 実際の現象を正確に反映していない状態をモデルが不確実性を含むという. この不確実性に対する問題は経済学だけでなく物理学や工学など他の分野でも共通して存在しているが, 経済学においては特に深刻である~\citep{hansen2008robustness}. 
+
+不確実性を含まない恒常所得モデルに代表される合理的期待形成仮説では, 主観的および客観的な確率分布やモデルが一致するため家計自身のモデルが信頼に値し, 意思決定をするにあたり不確実性の心配をする必要がない. しかし実際にはリスク分散の基本を理解していない人々や, 投資に関する不完全な情報を持つ投資家, 自分の収入増加の見込みについて不完全な情報を持つ個人などがある. これらの知識不足は消費や貯蓄の意思決定に大きな不確実性をもたらす. 加えて~\citet{ahn2014estimating}や~\citet{NBERw22225}の研究によると個々の家計は不確実性を嫌い, ロバスト性を好む傾向にあることを主張している. 
+
+また~\citet{maenhout2004robust}や~\citet{0b83379c8b7c395fbf5d31d995da6c62}らの研究によると, 不確実性はモデル不確実性とパラメータ不確実性の2種類に分類されることが指摘されている. 前者は消費活動を行う家計が自らの置かれた状況に対してモデルそのものを誤って認識している状況を指すのに対し, 後者はモデルは正確に認識しているが各パラメータの予測を誤っている状況を指す. 複雑な経済システムにおいて, データ分析者が正確なモデルを立てるのが難しいのと同じく, その環境内で行動する家計も適切なモデルを予想することは難しいと考えられるのは自然なことである. 
+
+そこで本研究ではモデル不確実性に焦点を当て, 家計が将来の所得に対する確率分布を正確に特定できないケースについて定式化を行い, 不確実性を含まない恒常所得モデルとの消費, 貯蓄のふるまい方の違いを考察する. 
+
+\section{不正確な特定化を含まない恒常所得モデル}
+まず初めに恒常所得モデルにおける家計の消費と貯蓄の間の選好を詳細に検討する. 家計の持つ離散時間$t\in \mathbb{N}_{+}$までの情報における期待値を$\mathbb{E}_t$とする. 時間$t$での消費を$c_t$, 貯蓄を$k_t$, 初期賦与を$d_t$とする. また$k_t$が負の時は借金額を表し, 無限に借金が可能であるとする. $\gamma$は消費の飽和点であり, これ以上の消費は, 家計の満足度を飽和させてしまうため, 効用を増加させないものとする. 割引因子を$\beta \in(0,1)$とする. 
+
+恒常所得モデルでは, 時間$t$において家計は初期賦与(endowment) $d_t$ を受け取り, それを消費(consumption) $c_t$ と貯蓄(saving) $k_t$ の間で配分し: 
+\begin{equation}\label{eq:kouyou in model}
+\mathbb{E}_0\left[\sum_{t=0}^{\infty} -\beta^t (\gamma-c_t)^2\right],
+\end{equation}
+を最大化することを目指す. また家計の$d_t$ はそれ以前の時点での初期賦与に依存する確率過程である. この初期賦与をもとに家計は次の差分方程式を基に$t$期の貯蓄, 消費の分配を決定する:
+\begin{align}\label{eq:huriwake}
+    k_t+c_t & =R k_{t-1}+d_t , \\ \label{eq:endowment}
+    d_{t+1} & =\mu_d(1-\rho)+\rho d_t+c_d\hat{\epsilon}_{t+1} .
+    \end{align}
+    ここで$R>1$は$t-1$終了時に保有している$k_{t-1}$の金利である. $| \rho | <1$は$d_t$の持続性を表す自己回帰係数であり, この値が大きいほど$d_t$の値が$d_{t+1}$に大きな影響を与えることを意味する. $\hat{\epsilon}_{t+1}$はi.i.dに従う標準誤差であり, その誤差は標準正規分布$\mathcal{N}(0,1)$に従う. $\mu_d$は初期賦与の全体平均である. \par
+
+ここで家計が無限に借金をしないようにポンジ・スキームを禁止させる. 恒常所得モデルにおいては, 家計の借入れや貯蓄の慣行を考慮する必要がある. この文脈において, ポンジ・スキームの禁止条件は特に重要な役割を果たしている. ポンジ・スキームとは, 新規の投資家からの資金を使用して早期の投資家にリターンを支払う形式の投資詐欺を指す. 経済モデルにおけるポンジ・スキーム禁止条件は, 家計が無限に借金を転がし続けること, すなわち過去の借金を返済するために新たに借り入れを続けることを禁止する. ポンジ・スキームを抑制する条件式は次式である:
+%$\mathbb{E}_0\left[\sum_{t=0}^{\infty} \beta^t k_t^2\right]<\infty$
+\begin{equation}\label{ponji}
+\mathbb{E}_0\left[\sum_{t=0}^{\infty} \beta^t k_t^2\right]<\infty.
+\end{equation}
+
+
+以上より不正確な特定化を含まない恒常所得モデルは以下となる: 
+\begin{equation}\label{eq:PIM nosig problem}
+    \begin{aligned}
+       \max _{\left\{u_t\right\}_{t=0}^{\infty}}  &\mathbb{E}_0\left[\sum_{t=0}^{\infty} -\beta^t(\gamma-c_t)^2\right] \\
+        \text{s.t.} \ \ \ \ \  k_t+c_t & =R k_{t-1}+d_t , \\
+        d_{t+1} & =\mu_d(1-\rho)+\rho d_t+c_d\hat{\epsilon}_{t+1} \\
+        \mathbb{E}_0&\left[ \sum_{t=0}^{\infty} \beta^t k_t^2\right]<\infty.
+    \end{aligned}
+\end{equation}
+
+\section{不正確な特定化を含む恒常所得モデル}
+家計の効用関数は式~\eqref{eq:kouyou in model}で与えられるものとする. 不正確な特定化を含まない恒常所得モデルでは式~\eqref{eq:endowment}で初期賦与が与えられると仮定したが, しかしながら, 実際の経済状況は, しばしば複雑で予測困難な要素を含んでいる. したがって家計は標準誤差のみで記述されたものよりも, 不確実性を導入し現実のデータにより適切に対応できるようなアプローチを取ると考えられる. そのため式~\eqref{eq:endowment}を以下のように拡張する:
+    \begin{equation}\label{eq:endowment_fixed}
+        d_{t+1} = \mu_d(1-\rho) + \rho d_t + c_d\left(\epsilon_{t+1} + w_{t+1}\right) .
+    \end{equation}
+$\epsilon_{t+1}$はi.i.dに従う標準誤差であり, 標準正規分布$\mathcal{N}(0,1)$に従う. $w_{t+1}$はスカラであり, $y_t$の過去の値に依存する非線形関数として作用する. すなわち$w_{t+1}$は観測可能な関数$g_t$を用いて$w_{t+1}=g_t\left(y_t, y_{t-1}, \ldots\right)$のように表現される. 式~\eqref{eq:endowment_fixed}で初期賦与が生成されるとき, 式~\eqref{eq:endowment}の標準誤差は$\mathcal{N}\left(w_{t+1}, 1\right)$に従うと観測される. この$w_{t+1}$を導入することにより, モデルは現実のデータ生成プロセスをより正確に捉えることが可能となり, 不確実性を含んだ複雑な状況下でも家計の行動を適切に予測し分析することができるようになる. 
+
+
+\subsection{カルバック・ライブラー情報量}
+ここで導入した $w_{t+1}$ は, 式~\eqref{eq:endowment} で与えられる基準的な初期賦与プロセスと, 
+現実のプロセスとの乖離を記述するための補完的な説明変数である. 
+家計は 式~\eqref{eq:endowment} を「もっとも妥当な基準モデル」とみなしているが, 
+モデルに不正確な特定化が含まれる可能性を完全には排除していないものと考える. 
+そこで, 現実の初期賦与がこの基準モデルからどの方向に, どの程度ずれ得るかを, 
+$w_{t+1}$ を通じて表現する. 
+
+しかし, $w_{t+1}$ を完全に自由な摂動として許せば, 
+基準モデルから任意に大きく乖離した確率過程をも認めることになり, 
+そもそも ~\eqref{eq:endowment} を基準として採用した意味が失われてしまう. 
+本稿では, 家計自身が
+「現実は基準モデルから大きくは外れないはずだ」
+という事前の認識を持っており, 
+その認識に基づいて $w_{t+1}$ の取りうる大きさに自ら上限を課している
+と解釈する. 
+この上限は, 家計がどの程度までモデル誤差を許容するか, 
+すなわち基準モデルと現実との乖離に対するロバスト性の強さを表すパラメータである. 
+この許容度を定量化するために, 本稿ではカルバック・ライブラー情報量
+(Kullback–Leibler divergence) を用いる. カルバック・ライブラー情報量とは, 機械学習や統計の様々な場面で分布どうしの違いを測るために用いられる尺度である~\citep{saitekiyusou}. 
+
+まず, 初期賦与プロセス ~\eqref{eq:endowment} とその拡張形 ~\eqref{eq:endowment_fixed} の確率分布について考える. 両式内の$\mu_d(1-\rho)+\rho d_t$は決定論的に決まり, 誤差項の平均は0であるため, 真の初期付与の条件付き分布を$f_0(d_{t+1}\mid d_t)$, 不特定な特定化を含む初期付与の条件付き分布を$f(d_{t+1}\mid d_t)$とするとそれぞれ: 
+\begin{align}
+    f_0(d_{t+1}\mid d_t)
+    &\sim \mathcal{N}\bigl(\mu_d(1-\rho)+\rho d_t,\ c_d^2\bigr), \\
+    f(d_{t+1}\mid d_t)
+    &\sim \mathcal{N}\bigl(\mu_d(1-\rho)+\rho d_t + c_d w_{t+1},\ c_d^2\bigr),
+\end{align}
+と書ける.
+
+このとき, 1 期あたりのカルバック・ライブラー情報量
+$I(f_0,f)(d_t)$ を: 
+\begin{equation}
+    I\left(f_0, f\right)(d_t)
+    = \int \log\left(
+        \frac{f\left(d_{t+1} \mid d_t\right)}
+             {f_0\left(d_{t+1} \mid d_t\right)}
+      \right)
+      f\left(d_{t+1} \mid d_t\right) \, \text{d} d_{t+1},
+\end{equation}
+と定義する. ここで, 同じ分散 $\sigma^2$ をもつ一変量正規分布
+$
+    \mathcal{N}(\mu_0,\sigma^2), \ \mathcal{N}(\mu_1,\sigma^2)
+$
+に対して
+$
+   I\bigl(
+        \mathcal{N}(\mu_1,\sigma^2), \ \mathcal{N}(\mu_0,\sigma^2)
+    \bigr)
+    = \frac{(\mu_1-\mu_0)^2}{2\sigma^2}
+$
+が成り立つことを用いると, 
+本モデルでは
+$
+    \mu_0 = \mu_d(1-\rho)+\rho d_t, \ 
+    \mu_1 = \mu_d(1-\rho)+\rho d_t + c_d w_{t+1}, \ 
+    \sigma^2 = c_d^2
+$
+であるから:
+\begin{align*}
+    I\left(f_0, f\right)(d_t)
+    &= \frac{\bigl(\mu_1 - \mu_0\bigr)^2}{2\sigma^2} \\
+    &= \frac{(c_d w_{t+1})^2}{2 c_d^2} \\
+    &= \frac{w_{t+1}^2}{2},
+\end{align*}
+を得る. したがって, $w_{t+1}$ の大きさが 1 期あたりの分布のずれを
+\(\frac{w_{t+1}^2}{2}\) という形で決定していることがわかる. 
+
+つぎに, 全期間にわたる $w_{t+1}$ の影響を測るために, 
+先ほど求めた 1 期あたりの KL 情報量の期待値割引和$R(w)$を:
+\begin{align*}
+R(w)
+&= 2 \mathbb{E}_0 \sum_{t=0}^{\infty} \beta^{t+1}
+        \frac{w_{t+1}^2}{2} \\
+&= \mathbb{E}_0 \sum_{t=0}^{\infty} \beta^{t+1} w_{t+1}^2,
+\end{align*}
+とする. 
+$R(w)$ は, 基準モデル $f_0$ から拡張モデル $f$ への統計的な乖離の割引累積量を表す尺度である. 
+
+ここで, 家計は基準モデル $f_0$ を完全には信じていないものの, 
+現実の確率過程は「$f_0$ からそう大きくは離れていないはずだ」
+と考えていると仮定する. 
+このとき家計は, 自身が「現実としてありうる」とみなすモデルの集合として, 
+$R(w)$ がある上限 $\eta_0 \in [0,\bar{\eta})$ を満たすような
+$(f,w)$ のみを許容する. 
+すなわち:
+\begin{equation}
+    R(w)
+    = \mathbb{E}_0 \sum_{t=0}^{\infty} \beta^{t+1} w_{t+1}^2
+    \leq \eta_0,
+\end{equation}
+という制約を課す. 
+$\eta_0$ は, 家計が事前に選ぶ「モデル誤差に対する許容量」を表すパラメータであり, 
+$\eta_0$ が小さいほど家計は基準モデルからの乖離をほとんど認めず, 
+$\eta_0$ が大きいほど, より不正確なモデルの特定化の可能性を
+考慮して意思決定を行うことになる. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+したがって, $R(w)$ によって記述される不確実性を含む恒常所得モデルは, 目的関数を $\Tilde{K}(\eta_0)$ とおくと次のように書ける. 
+
+\begin{dfn}
+$\eta_0\in \left[0,\bar{\eta}\right)$ が与えられたとき, 
+\textbf{制約問題}を以下の式で定義する:
+\begin{equation}\label{eq:constraint problem}
+    \begin{aligned}
+        \Tilde{K}(\eta_0)
+        = \max_{\left\{c_t\right\}_{t=0}^{\infty}}
+          &\ \min_{\left\{w_{t+1}\right\}_{t=0}^{\infty}}
+          \ \mathbb{E}_0\left[
+              \sum_{t=0}^{\infty} -\beta^t(\gamma-c_t)^2
+          \right] \\
+        \text{s.t.}\quad
+        &k_t+c_t = R k_{t-1}+d_t, \\
+        &d_{t+1}
+            = \mu_d(1-\rho) + \rho d_t
+              + c_d\left(\epsilon_{t+1} + w_{t+1}\right), \\
+        &\mathbb{E}_0 \sum_{t=0}^{\infty} \beta^{t+1}
+            w_{t+1}^2
+            \leq \eta_0, \\
+            &\mathbb{E}_0\left[ \sum_{t=0}^{\infty} \beta^t k_t^2\right]<\infty.
+    \end{aligned}
+\end{equation}
+\end{dfn}
+
+
+
+\subsection{乗数問題への書き換え}
+ここで式~\eqref{eq:constraint problem}を線形二次レギュレータのフレームワークで考えるために制約問題を書き換えることを考える. まず乗数問題を以下で与える. 
+\begin{dfn}
+$\theta \in(\underline{\theta},+\infty]$が与えられたとき, \textbf{乗数問題}を以下とする: 
+\begin{equation}\label{eq:multiplier problem}
+    \begin{aligned}
+        \max_{\left\{c_t\right\}_{t=0}^{\infty}} \min_{\left\{w_{t+1}\right\}_{t=0}^{\infty}}&\mathbb{E}_0\left[\sum_{t=0}^{\infty} \beta^t \left[-(\gamma-c_t)^2+\beta \theta w_{t+1}^{\prime}w_{t+1}\right]\right] \\
+        \text{s.t.} \ \ \ \ \  k_t+c_t & =R k_{t-1}+d_t , \\
+        d_{t+1} &= \mu_d(1-\rho) + \rho d_t + c_d\left(\epsilon_{t+1} + w_{t+1}\right) \\
+        \mathbb{E}_0&\left[ \sum_{t=0}^{\infty} \beta^t k_t^2\right]<\infty.
+    \end{aligned}
+\end{equation}
+\end{dfn}
+乗数問題のように問題を再構築できれば線形二次レギュレータで書き換えることが可能である. また実際に以下の定理~\ref{const}が成立する. 
+\begin{thm}\label{const}
+    制約問題に対し, ある$\theta$が存在して, 等価な乗数問題に書き換えることができる. 
+    \end{thm}
+
+証明は~\ref{app:proof}を参照せよ. 
+
+
+
+
+\section{線形二次レギュレータへの帰着}\label{seq:return to LQR}
+線形二次レギュレータ(Linear Quadratic Regulator, LQR) は, 線形時不変系における制御の問題を解決するための解法である. 
+\begin{dfn}
+    線形二次レギュレータとは可制御性を満たす係数行列$A,B$で定義される線形時不変系 $y_{t+1}=A y_t+B u_t$に対して, 適切に選ばれた正定対称な重み行列 $Q, R$ を用いた 2次形式評価関数:
+    \begin{equation}\label{eq:J}
+\mathbb{E}_0 \sum_{t=0}^{\infty} \beta^t\left\{y_t^{\prime} R y_t+u_t^{\prime} Q u_t\right\},     
+\end{equation}
+    を最小にする制御入力 $u_t=-Fy_t$ を求める問題である~\citep{hansen2008robustness}.ここで$F$は
+    $
+        F=\beta\left(R+\beta B^{\prime} P B\right)^{-1} B^{\prime} P A
+    $
+    で求めることができ, 最適レギュレータと呼ばれる. ただし$P$はリカッチ方程式の解で正定値行列になる必要があり, 
+    $
+        P=Q+\beta A^{\prime} P A-\beta^2 A^{\prime} P B\left(R+\beta B^{\prime} P B\right)^{-1} B^{\prime} P A
+    $を満たす. 
+\end{dfn}
+
+%具体的には,  可制御性を満たす係数行列$A,B$で定義される線形時不変系 $y_{t+1}=A y_t+B u_t$に対して, 適切に選ばれた正定対称な重み行列 $Q, R$ を用いた 2次形式評価関数
+    %\begin{equation}\label{eq:J}
+%\mathbb{E}_0 \sum_{t=0}^{\infty} \beta^t\left\{y_t^{\prime} R y_t+u_t^{\prime} Q u_t\right\},     
+%\end{equation}
+    %を最小にする制御入力 $u_t=-Fy_t$ を求める問題として定式化できる~\cite{hansen2008robustness}. ここで$F$は
+    %$
+    %5    F=\beta\left(R+\beta B^{\prime} P B\right)^{-1} B^{\prime} P A
+    %$
+    %で求めることができ, 最適レギュレータと呼ばれる. ただし$P$はリカッチ方程式の解で正定値行列になる必要があり, 
+    %$
+    %    P=Q+\beta A^{\prime} P A-\beta^2 A^{\prime} P B\left(R+\beta B^{\prime} P B\right)^{-1} B^{\prime} P A
+    %$を満たす. 
+    また$P$は計算機による反復法を用いて算出することが可能である. ここの具体的な導出は~\ref{sec:リカッチ方程式}節で議論する. この計算手法を用いると係数行列$A,B$と重み$Q,R$を基に迅速に最適レギュレータを算出することが可能となる~\citep{kunimatu2016}. 
+
+%===========書き換え＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+では恒常所得モデルを線形二次レギュレータを用いた表現へと書き換える. Modified certainty equivalence principle~\citep{hansen2004certainty}より, $\epsilon_{t+1} \equiv 0$のように設定してもリカッチ方程式で求まる$P$の値に影響はしない為, 以降$\epsilon_{t+1} \equiv 0$として分析を進める. 以下はモデルを3次元の空間状態ベクトルで表現したものである~\citep{hansen2008robustness}. \textbf{後述するように, この変形では可制御性を満たさないため, LQR による解析には不適である. }
+
+式~\eqref{eq:huriwake}および~\eqref{eq:endowment_fixed}を新たな状態変数$\hat{y_t}$と制御変数$\hat{u_t}$をもちいて変形する. 状態変数$\hat{y_t}$を$\hat{y_t}'=\left[\begin{array}{lll}1 & d_t & k_{t-1}\end{array}\right]^{\prime}$, $\hat{u_t} = \left[\begin{array}{ll}\gamma - c_t & \epsilon_{t+1}\end{array}\right]^{\prime}$とすると式~\eqref{eq:huriwake}および~\eqref{eq:endowment}は以下のように1つの式で書き換えることが可能である: $\hat{y_{t+1}}=\hat{A}\hat{y_t}+ \hat{B} \hat{u_t}
+    $,
+    \begin{multline}\label{eq:state nomis AB}
+        \left[\begin{array}{c}
+        1 \\
+        d_{t+1} \\
+        k_t
+        \end{array}\right]=\left[\begin{array}{ccc}
+        1 & 0 & 0 \\
+        (1-\rho) \mu_d & \rho & 0 \\
+        -\gamma & 1 & R
+        \end{array}\right]\left[\begin{array}{c}
+        1 \\
+        d_t \\
+        k_{t-1}
+        \end{array}\right]+\left[\begin{array}{ll}
+        0&0 \\
+        0 &c_d\\
+        1&0
+        \end{array}\right]\left[\begin{array}{cc}\gamma - c_t \\ w_{t+1}\end{array}\right] .
+    \end{multline}
+
+また,     \begin{equation*}
+\begin{aligned}
+Q&=\begin{pmatrix}
+1 & 0 \\
+0 & - \beta \theta I \\
+
+\end{pmatrix} , \quad
+R &= \begin{pmatrix}
+0 & 0 & 0 \\
+0 & 0 & 0 \\
+0 & 0 & 0
+\end{pmatrix}.
+\end{aligned}
+\end{equation*}
+とすると式~\eqref{eq:multiplier problem}は以下のように書き換えることができる:
+\begin{equation}
+    \begin{aligned}
+        \max_{\left\{\hat{u}_t\right\}_{t=0}^{\infty}} & \mathbb{E}_0 \sum_{t=0}^{\infty} -\beta^t\left\{\hat{y}_t^{\prime} R \hat{y}_t+\hat{u}_t^{\prime} Q \hat{u}_t\right\}     \\
+        \text{s.t.} \ \ \  \hat{y}_{t+1}&=\hat{A} \hat{y}_t+ \hat{B} \hat{u}_t .
+    \end{aligned}
+\end{equation}
+しかしこの設定のままでは式~\eqref{ponji}がLQRで考慮されていない為, Rの$(3,3)$要素に$10^{-9}$程度の十分に小さい正則化要素$\epsilon>0$を加えることで$k_t^2$にペナルティを課しこの問題を解消する. 
+
+
+
+
+
+\subsection{可制御性の保証}
+
+一般に, 状態ベクトル $x_t \in \mathbb{R}^n$, 制御ベクトル $v_t \in \mathbb{R}^m$ に対する
+線形時不変系:
+\begin{equation}
+    x_{t+1} = C x_t + D v_t,
+\end{equation}
+を考える. ここで $C \in \mathbb{R}^{n \times n}$, $D \in \mathbb{R}^{n \times m}$ であり, 
+$n$ は状態の次元である. 
+
+任意の初期状態 $x_0 \in \mathbb{R}^n$ から, 有限ステップの入力列 $\{v_t\}$ を用いて
+任意の状態へ到達できるとき, 系 $(C,D)$ は可制御 (controllable) であるという. また, 可制御であるとは言い換えると, 原点から出発した時不変系の解を任意の状態に有限時間で到達させる入力$\{ v \}$が存在することを指す~\citep{robasutoseigyo}. 
+この性質は, 可制御行列:
+\begin{equation}
+    \boldsymbol{Co}(C,D)
+    =
+    \begin{bmatrix}
+        D & C D & C^2 D & \cdots & C^{n-1} D
+    \end{bmatrix},
+\end{equation}
+の階数によって特徴付けられる. すなわち, 状態の次元を $n$ とすると, 
+$
+    \mathrm{rank}\bigl(\boldsymbol{Co}(C,D)\bigr) = n
+$
+が成り立つとき, かつそのときに限り, 系 $(C,D)$ は可制御である. 
+
+
+3 次元状態ベクトルを用いた表現 ~\eqref{eq:state nomis AB} に対応する可制御行列 $\boldsymbol{Co}$ を構成し, その階数を計算すると:
+\begin{equation}
+    \mathrm{rank}(\boldsymbol{Co}) < 3,
+\end{equation}
+となり, 可制御行列がフルランクではないことがわかる. したがって, この 3 次元状態の定式化では, 任意の初期状態から任意の状態へ移すことはできず, LQR の前提条件である可制御性を満たさない. このため, ~\eqref{eq:state nomis AB} に基づく LQR 解析は不適切である. 
+
+そこで本研究では~\citet{hansen2008robustness} に倣い, モデルを 2 次元の状態ベクトル $y_t^{\prime}=\left[\begin{array}{lll}d_{t}-\gamma&k_{t-1}\end{array}\right]^{\prime}$ と 2 次元の制御ベクトル $u_t^{\prime} =\left[\begin{array}{lll} \gamma - c_t &
+w_{t+1}+\phi_0\end{array}\right]^{\prime}$ からなる線形二次レギュレータ問題として再定式化する. ここで$\phi_0=\left(1-\rho\right)\left(\mu_d-\gamma\right)/c_d$である.   このとき: $y_{t+1}=A y_t+B u_t$,
+\begin{equation}\label{state}
+\left[\begin{array}{c}
+d_{t+1} -\gamma \\
+k_t
+\end{array}\right]=\left[\begin{array}{cc}
+\rho &0\\
+1&R
+\end{array}\right]\left[\begin{array}{c}
+d_t -\gamma \\
+k_{t-1}
+\end{array}\right]\\+\left[\begin{array}{cc}
+0 & c_t\\
+1 & 0
+\end{array}\right]\left[\begin{array}{c}
+\gamma - c_t\\
+w_{t+1}+\phi_0
+\end{array}\right],
+\end{equation}
+と再構築することができる. 
+
+このときの可制御行列は:
+\begin{align*}
+    \boldsymbol{Co}
+    &= \bigl[ B \ \ A B\bigr] \\
+    &= 
+    \begin{bmatrix}
+        0 & c_d & 0 & c_d \rho  \\
+        1 & 0   & R & c_d     
+    \end{bmatrix},
+\end{align*}
+と計算される. したがって $c_d \neq 0$ であれば, $\boldsymbol{Co}$ の 2 行は線形独立であり
+$
+    \mathrm{rank}(\boldsymbol{Co}) = 2
+$
+となる. 状態次元は $2$ であるから, この線形時不変は可制御性を満たすことが確認できる. よって以降は以下の線形時不変を用いて分析を進める: 
+\begin{equation}\label{eq:LQR nomis}
+    \begin{aligned}
+        \max_{\left\{u_t\right\}_{t=0}^{\infty}} & \mathbb{E}_0 \sum_{t=0}^{\infty} -\beta^t\left\{y_t^{\prime} R y_t+u_t^{\prime} Q u_t\right\}     \\
+        \text{s.t.} \ \ \ y_{t+1}&=A y_t+B u_t .
+    \end{aligned}
+\end{equation}
+
+
+
+\subsection{リカッチ方程式}\label{sec:リカッチ方程式}
+式~\eqref{eq:LQR nomis}をベルマン方程式に変換する. 目的関数を:
+\begin{equation}\label{eq:LQR nomis value function}
+-y_0 P y_0-p=\max_{\left\{u_t\right\}_{t=0}^{\infty}}  \mathbb{E}_0 \sum_{t=0}^{\infty} -\beta^t\left\{y_t^{\prime} R y_t+u_t^{\prime} Q u_t\right\} ,
+\end{equation}
+    とおく. 定数$p$は$C$に依存し, 極値からの誤差を表す. またModified certainty equivalence principle~\citep{hansen2004certainty}より, $\epsilon_{t+1} \equiv 0$のように設定してもリカッチ方程式で求まる$P$の値に影響はしない為, 以降$\epsilon_{t+1} \equiv 0$として分析を進める. 加えて$-y^{\prime} P y-p$より$p$を除外しても意思決定には問題ないことも注意する. すると式~\eqref{eq:LQR nomis value function}に対して以下のベルマン方程式を考えることができる:
+    \begin{equation}\label{eq:bellman LQR nomis}
+\begin{aligned}
+-y^{\prime} P y&=\max_{u}\left\{-y^{\prime} Q y-u^{\prime} Ru-\beta (A y+B u)^\prime P (A y+B u)\right\} \\
+\text {s.t.}   y^*&=A y+B u .
+\end{aligned}
+\end{equation}
+ここで*は次期の値であることを表している. また式~\eqref{eq:bellman LQR nomis}に対し二次形式の微分公式, $\frac{\partial y^{\prime} A y}{\partial y}=\left(A+A^{\prime}\right) y , \frac{\partial y^{\prime} B z}{\partial y}=B z, \frac{\partial y^{\prime} B z}{\partial z}=B^{\prime} y$を用いて一階条件を計算すると, $\left(R+\beta B^{\prime} P B\right) u=-\beta B^{\prime} P A y$となる. これを$u$について解くと$u=-Fy$もしくは:
+\begin{equation}\label{eq:optimal decision}
+    u=-\beta\left(R+\beta B^{\prime} P B\right)^{-1} B^{\prime} P A y ,
+\end{equation}と表すことができる. ここで$F$は最適レギュレータと呼ばれている. またこの式~\eqref{eq:optimal decision}を式~\eqref{eq:bellman LQR nomis}の目的関数右辺に代入し整理すると:
+\begin{equation}\label{eq:P}
+   P=Q+\beta A^{\prime} P A-\beta^2 A^{\prime} P B\left(\tilde{R}+\beta B^{\prime} P B\right)^{-1} B^{\prime} P A ,
+\end{equation}
+を得る. 式~\eqref{eq:P}はリカッチ方程式と呼ばれる. ただし$P$はリカッチ方程式の解で正定値行列になる必要がある. 
+
+
+
+\section{計算機実験}
+本節では, 期間$t$は1500とした. またパラメータを表1のように設定した. 
+\begin{table}[tb]
+\centering
+\caption{パラメータの設定}
+\begin{tabular}{cc}\hline
+変数&値\\ \hline
+$\mu_d$ & 13.0 \\
+$\rho$  & 0.05 \\
+$\gamma$& 13.0  \\
+$c_d$   & 1.0   \\
+$\sigma$ & 1e-9   \\ \hline
+\end{tabular}
+\end{table}
+
+この設定の下で初期賦与の係数行列$A,B$は以下のようになる:
+\begin{equation*}
+A=\left[
+\begin{array}{cc}
+0.05&0\\
+1&1.05263158
+\end{array}
+\right], \quad
+B=\left[
+\begin{array}{cc}
+0 & 0.2 \\
+1 & 0
+\end{array}
+\right].
+\end{equation*}
+この$A,B$をもとに可制御行列$\boldsymbol{C o}$を求めると以下になり, 階数は2となり可制御性を満たすことを確認した. 
+
+
+
+また$(\beta,\theta)=(0.95,\infty),~(0.9447,\infty),~(0.95,10),~(0.9447,10)$の4つのケースを共通のパラメータ$\mu_d=13.0, \rho=0.05, \gamma=15.0, c_d=1.0$と設定した計算機実験の結果を示す. 誤差項$\epsilon_{t+1} \sim \mathcal{N}(0,1)$に加え, 式~\eqref{eq:endowment_fixed}のように$w_{t+1}$を含む初期賦与を採用し, $Q,R$の重み行列を~\ref{seq:return to LQR}節のとおり設定した. 図~\ref{beta=0.95,theta=infty}に$(0.95,\infty)$としたケース, 図~\ref{beta=0.9447,theta=infty}に$(0.9447,\infty)$としたケース, 図~\ref{beta=0.95,theta=10}に$(0.95,10)$, 図~\ref{beta=0.9447,theta=10}に$(0.9447,10)$としたケースで計算した消費と貯蓄の動きを示す. 
+
+図~\ref{beta=0.95,theta=infty}を基準ケースとしてそれぞれの図を比較する. $(\beta,\theta)=(0.95,\infty)$である図~\ref{beta=0.95,theta=infty}は所得を正確に予想できるケースである. これは従来の恒常所得モデルと同様に所得の変動に合わせて貯蓄を調整する一方, 平滑な消費を実現した. またこの時の消費の平均は10.84, 標準偏差は0.77であった. またこのケースにおける最適レギュレータ$F_1$は$\left[
+\begin{array}{ccc}
+-2.68241495& 0.05249346& 0.0526316 \\
+\end{array}
+\right]$となった. $(\beta,\theta)=(0.9447,\infty)$である図~\ref{beta=0.9447,theta=infty}は所得を正確に予想できるケースであるが, 割引因子を低下させたものである. このケースにおける消費の平均は9.51, 標準偏差1.26であり, 基準ケースよりも消費の平均は低下し, 標準偏差は上昇した. $(\beta,\theta)=(0.95,10)$である図~\ref{beta=0.95,theta=10}は所得を正確に予想できないケースである. このケースにおける消費の平均は14.46, 標準偏差は0.74であり, 基準ケースよりも消費の平均は上昇し, 標準偏差は同程度であった. さらに19期目で, この消費は基準ケースのそれを上回り, その後, 消費が下回ることはなかった. $(\beta,\theta)=(0.9447,10)$である図~\ref{beta=0.9447,theta=10}は所得を正確に予想できないケースであり, また基準ケースから割引因子を低下させたものである. このケースにおける最適レギュレータ$F_4$は$\left[
+\begin{array}{ccc}
+-2.68241484& 0.05249345& 0.0526316 \\
+\end{array}
+\right]$と$F_1$とほぼ一致した. 
+
+
+\begin{figure*}[tb]
+\centering
+    \begin{tabular}{cc}
+      \begin{minipage}[t]{0.45\hsize}
+        \centering
+        \includegraphics[width=\linewidth]{fig/095_infty.png}
+        \caption{$\beta=0.95,\theta=\infty$}
+        \label{beta=0.95,theta=infty}
+      \end{minipage} &
+      \begin{minipage}[t]{0.45\hsize}
+        \centering
+        \includegraphics[width=\linewidth]{fig/0944_infty.png}
+        \caption{$\beta=0.9447,\theta=\infty$}
+        \label{beta=0.9447,theta=infty}
+      \end{minipage} \\
+   
+      \begin{minipage}[t]{0.45\hsize}
+        \centering
+        \includegraphics[width=\linewidth]{fig/095_10.png}
+        \caption{$\beta=0.95,\theta=10$}
+        \label{beta=0.95,theta=10}
+      \end{minipage} &
+      \begin{minipage}[t]{0.45\hsize}
+        \centering
+        \includegraphics[width=\linewidth]{fig/0944_10.png}
+        \caption{$\beta=0.9447,\theta=10$}
+        \label{beta=0.9447,theta=10}
+      \end{minipage} 
+    \end{tabular}
+  \end{figure*}
+
+
+
+
+
+
+
+
+
+
+\section{議論}
+
+本研究は, 家計が所得過程の正しい確率分布を知るという仮定を緩め, 
+家計が将来所得のモデルを不正確に特定している可能性を導入した. 
+具体的には, 基準モデルからの乖離をカルバック・ライブラー情報量で測り, 
+その割引和に上限を課すことで「現実的に起こりうるシナリオ」の集合を定義した. 
+さらに, 制約問題を乗数問題に書き換えることで線形二次レギュレータへ帰着させ, 
+リカッチ方程式に基づく計算可能な形で最適政策を得られる点を説明した. 
+
+
+本稿で導入した摂動 $w_{t+1}$ は, 真のモデルが想定するショックからの系統的なずれを表す. 
+また乗数 $\theta$ は, そのずれに対するペナルティの大きさを通じて, 
+家計がどの程度までモデルの見誤りを懸念するかを特徴づけるパラメータである. 
+$\theta=\infty$ の時は真のモデルへの完全な信任に対応し, 
+$\theta$ が有限になるほど家計は, 
+より不利な方向へのずれを考慮して意思決定を行う. 
+この枠組みでは, モデル不確実性は単に所得ショックの分散を増やすのではなく, 状態へのフィードバックのかかり方そのものを変化させ得る. つまり起きたショックへの反応ではなく, ショックが来る前の構え（貯蓄を増やしてショックに耐える準備等）が変わるということを示唆している. 
+
+
+計算機実験では, 割引因子 $\beta$ およびロバスト性のパラメータ $\theta$ の違いにより, 
+消費および貯蓄のダイナミクスがどのように変化するかを確認した. 
+$\beta$ の低下は将来効用への重みを弱め, 消費平滑化の程度やショック吸収の分担（消費と資産の調整）が変化する. 
+一方, $\theta$ を有限とした場合には, 
+家計は基準モデルからのずれを織り込んだ意思決定を行い, 
+同じ所得系列に対しても消費水準や資産の推移が基準ケースと異なるパスを描くことが示された. 
+ただし, モデルの不確実性が消費・貯蓄をどちらの方向へ動かすかは, 
+目的関数の形（本稿では飽和点 $\gamma$ からの乖離）や金利・割引率などのパラメータに依存し得るため, 
+今後は $\theta$ や $\beta$ を連続的に変化させた感度分析により, 
+政策関数の変化を系統的に整理する必要がある. 
+
+
+退職消費パズルにおける消費や貯蓄行動に関する先行研究では, 
+恒常所得モデルが予測する引退後の資産取り崩しと整合しない事実が報告されている. 
+この乖離は, 退職後に直面する不確実性が単なるリスクではなく, 
+年金制度, 医療・介護支出, 長寿, 資産収益率といった要因に関して
+家計が確率分布そのものを十分に特定できないという「モデルの不確実性」を含む可能性と整合的である. 
+本稿の枠組みは, 家計が真のモデルを完全には信じず, 
+もっともらしい範囲で不利なずれを考慮して行動する場合, 
+消費平滑化や余剰資産の保持といった行動が強化され得ることを示唆する. 
+したがって, 退職期の所得過程や医療費過程に対して同様のロバスト化を導入することは, 
+退職後の資産取り崩しの遅さを説明する一つの方向性となり得ると考える. 
+
+
+最後に, 本稿で用いたロバスト制御の枠組みでは, 
+摂動そのものが確率測度の歪みとして解釈できるため, 
+資産価格付けにおける割引因子へ直接的な含意を持つ. 
+直観的には, モデルに不確実性が存在するときにおいて家計は不利な状態を相対的に重く評価し, 
+リスク資産に対するリスクプレミアムが変化し得る. 
+今後は, 本稿の所得過程にリスク資産収益率を組み込み, 
+消費・貯蓄・ポートフォリオ選択の同時決定問題として拡張することで, 
+ロバスト性が資産需要やリスクプレミアムに与える影響を数量的に検討したい. 
+
+
+
+
+
+
+\newpage
+
+
+\newpage
+\part{競争的施設配置問題における突然変異付きラグランジュ勾配降下/上昇法に関する研究}
+
+競争的施設配置問題（CFLP: Competitive Facility Location Problem）は, 
+代替可能な製品やサービスに対する顧客需要をめぐって複数の企業が競争する
+意思決定ゲームを扱うものである. CFLP は, 新規小売店舗の開設, パークアンドライド型レンタカー施設, 
+電気自動車向け充電ステーションの設置など, 現実世界の多様な問題に現れる. 
+CFLP は1社による施設配置問題を発展させ, 
+市場が単独の企業によって寡占されている状況ではなく, 複数の競合企業が共存し, 特定の消費者行動を示すという, より複雑な意思決定環境を扱う. 
+
+
+CFLP における競争形態には, 主に静的, 逐次的, 動的の3種類が存在する~\citep{plastria2001static}. 
+静的 CFLP では, 新規参入企業は市場へ参入する際に, 競合企業が既に設置している施設の位置や魅力度を事前に知っているものとする. 特定の顧客行動モデルに基づき, 企業は市場シェア最大化のため
+どこに新規施設を配置するかを決定する. 静的 CFLP に関する代表的研究として, 
+~\citet{benati2002maximum, haase2014comparison, ljubic2018outer, mai2020multicut}などがある. 
+
+一方で, 逐次的 CFLP や動的 CFLP では, 競合が新たな施設を開設した後で, 
+企業が自らの施設配置を調整できる~\citep{eiselt1997sequential, plastria2008discrete, kuccukaydin2011competitive, kress2012sequential, drezner2015leader,gentile2018integer}. 逐次的 CFLP では, リーダー企業がフォロワー企業の潜在的な立地選択を考慮し, 
+市場シェア最大化のために自社の立地を最適化する. この観点から, 静的 CFLP はリーダーの立地を固定した
+逐次的 CFLP のフォロワー問題とみなすこともできる. 
+
+動的 CFLP では, 複数企業が同時に, 非協力的かつ逐次反復的に意思決定を行い, 
+ナッシュ均衡に至る~\citep{godinho2010two}. 
+本研究では逐次的 CFLP に焦点を当て, 以下の特徴を扱う: 
+(i) 企業は競合の行動を観測してから, 残りの候補地に施設を配置できる；
+(ii) 立地決定は長期的であり, 頻繁な再配置は経済的に非現実的であるため採用しない. 
+本研究で扱うのは戦略的レベルでの長期的立地決定であり, 
+短期的な需要変動や個別戦術（価格設定, 日々の需要供給など）は扱わない. 
+
+
+CFLP では, 顧客は各施設から得られる効用に基づいて独立に意思決定する. 
+効用は一般に, 施設への距離, 施設規模, サービス価格などに依存する~\citep{o1999trade}. 
+得られた効用を顧客の選択に変換するため, 選択行動モデル（choice model）が用いられる. 
+
+決定論的選択モデル（deterministic choice model）では, 各顧客は最も効用の高い施設からのみ購買する. 
+この設定のもと, 逐次的 CFLP は混合整数線形計画（Mixed Integer Linear Programming, MILP）として定式化でき~\citep{plastria2008discrete, roboredo2013branch, drezner2015leader, gentile2018integer}, 商用ソルバーで効率的に解くことができる. 
+
+一方で, 確率的選択モデル（probabilistic choice model）は顧客需要を複数施設に確率的に分配する. 
+代表例として多項ロジット（Multinomial Logit, MNL）~\citep{EconBiz-10002395479}がある. 
+MNL モデルは静的 CFLP の文献で広く利用されているが, 
+逐次的 CFLP では混合整数非線形計画問題（MINLP）を生じるため, 研究が限られてきた. 
+
+本研究では, MNL 型確率的需要を伴う逐次的 CFLP を扱い, 厳密最適解の導出ではなく, 実務上許容可能な精度の解を短時間で得ることを
+目的とした近似アルゴリズムの構築に焦点を当てる. 
+
+
+
+\begin{comment}
+\subsection{本研究の貢献}
+本研究の主な貢献は以下の通りである. 
+
+\begin{enumerate}
+\item 逐次的 CFLP の目的関数を変更し, 同値な RO（ロバスト最適化）モデルの不確実性集合を意思決定と独立に扱えるよう再定式化することで, 問題を単一レベル MINLP として解ける形へと変換する. これにより, 分枝刈り法により大域最適解を厳密に求めることが可能となる. 
+\item 分枝刈りアルゴリズムを高速化するため, 2種類の有効な不等式を導出し, それらの近似分離法を提案することで計算効率を大幅に向上させる. 
+\item 混合整数二次錐計画（MISOCP）に基づく近似アルゴリズムを提案し, 市販ソルバーで高速に解くことが可能であり, 一定の近似保証も提供する. 
+\item 計算実験により, 提案手法が100候補施設・2000顧客ノードといった大規模インスタンスを分単位で解けることを示す. また, 近似手法も高品質な解を迅速に得られる. 
+\item さらに, 一般的な施設開設コスト, 外部競合, 魅力度水準, 効用変化などを組み込んだ拡張モデルにも適用可能であることを示す. 
+\end{enumerate}
+\end{comment}
+
+
+
+\section{1社による施設配置問題}
+本節では, ~\citet{nemhauser:adm:1981}にもとづき, 1人のプレイヤによる施設配置問題が劣モジュラ最大化問題に帰着されることを概説する. 
+
+候補地集合を $N = \{1, \ldots, n\}$ とし, このうち $K < n$ 個の候補地に施設を配置する状況を考える. 顧客集合を $M = \{1, \ldots, m\}$ とし, 候補地 $j$ に施設を設置したときに顧客 $i$ から受け取れる利益を $v_{ij} \geq 0$ とする. また, 候補地 $j$ の施設に顧客 $i$ が訪れる確率を $x_{ij} \geq 0$ とし, 各顧客 $i$ について $\sum_{j=1}^{n} x_{ij} = 1$ が成り立つと仮定する. これはプレイヤが, どの顧客をどの施設で主としてサービスするかという「顧客の割り当て方針」に対応する. 
+
+プレイヤが候補地 $j$ に施設を設置するか否かを表す変数を $y_{j} \in \{0,1\}$ とし, $\sum_{j=1}^{n} y_{j} = K$ を満たすものとする. ただし, 候補地 $j$ に施設を設置しない場合（$y_{j} = 0$）には, その候補地の施設を顧客 $i$ が訪れる確率は $0$ でなければならない. したがって, すべての $i = 1, \dots, m$ および $j = 1, \dots, n$ に対して制約 $x_{ij} - y_{j} \leq 0$ を課す. 
+
+以上より, プレイヤの利益を最大化する施設配置を求める問題は, 次の混合整数計画問題として記述できる:
+\begin{align*}
+    \text{Maximize:}   & \quad \sum_{i=1}^{m}\sum_{j=1}^{n} v_{ij} x_{ij},\\
+    \text{subject to:} & \quad \sum_{j=1}^{n} x_{ij} = 1, \quad i = 1, \dots, m, \\
+                       & \quad x_{ij} - y_{j} \leq 0, \quad i = 1, \dots, m, \quad j = 1, \dots, n, \\
+                       & \quad \sum_{j=1}^{n} y_{j} = K, \\
+                       & \quad x_{ij} \geq 0, \quad i = 1, \dots, m, \quad j = 1, \dots, n, \\
+                       & \quad y_{j} \in \{0,1\}, \quad j = 1, \dots, n.
+\end{align*}
+ここで, $y_{j} = 1$ は候補地 $j$ に施設が設置されていることを意味する. 
+
+次に, この混合整数計画問題を（制約なしの）劣モジュラ最大化問題に帰着する. 候補地の部分集合 $S \subseteq N$ に対して, $S$ に含まれる候補地に施設を配置しているか否かを表す特徴ベクトル $y^{S}$ を:
+\[
+y_{j}^{S}=
+\begin{cases}
+    1 & (j \in S)    \\
+    0 & (j \notin S)
+\end{cases}\ \ ,
+\]
+と定義する. また, $S \subseteq N$ に対して, 顧客 $i$ が $S$ に含まれる候補地の施設を利用する確率 $x_{ij}^{S}$ を:
+\[
+x_{ij}^{S}=
+\begin{cases}
+    1 & \text{for some } j \text{ such that } v_{ij} = \max_{k \in S} v_{ik} \\
+    0 & \text{otherwise}
+\end{cases}\ \ ,
+\]
+と定義する. ここで, プレイヤは自身の利益が最大となるように, 顧客 $i$ が利用しうる施設を $S$ 内の中で最も利益 $v_{ij}$ が大きい候補地 $j$ に限定すると仮定している. 
+
+このとき先の混合整数計画問題の目的関数は, 集合 $S \subseteq N$ を用いて:
+\[
+v(S)
+= \sum_{i=1}^{m}\sum_{j=1}^{n} v_{ij} x_{ij}^{S}
+= \sum_{i=1}^{m} \max_{j \in S} v_{ij},
+\]
+と書き換えられる. したがって, 元の問題は:
+\[
+\max_{S} v(S) \quad \text{s.t.}\quad S \subseteq N,\ |S| = K,
+\]
+という制約付き集合関数最大化問題に帰着される. ここで定義された集合関数 $v(S)$ は劣モジュラかつ非減少であることが知られている. 
+
+\begin{clm}
+集合関数 $v(S)$ は, 任意の $S, T \subseteq N$ に対して:
+\[
+v(S) + v(T) \geq v(S \cup T) + v(S \cap T), \quad v(\emptyset) = 0,
+\]
+を満たし, 劣モジュラ性を有する. 
+\end{clm}
+
+\begin{clm}
+集合関数 $v(S)$ は非減少である. すなわち, 任意の $S \subset N$ と $j \notin S$ に対して
+\[
+v(S \cup \{j\}) - v(S) \geq 0,
+\]
+が成り立つ. 
+\end{clm}
+
+このように表される劣モジュラ関数最大化問題は, 貪欲法によって近似解を求めることができる~\citep{krause:jmlr:2008}. 貪欲法による解の目的関数値を $V^{G}$ とし, 元の混合整数計画問題の線形計画緩和問題から得られる最適値を $V^{LP}$ とすると:
+\[
+\frac{V^{G}}{V^{LP}} \geq 1 - \left(\frac{K-1}{K}\right)^{K} \geq \frac{e-1}{e} \approx 0.63,
+\]
+が成り立つ. 
+
+
+
+    
+\section{2社間における競争的施設配置問題}
+
+本節では, ~\citet{qi:or:2024}にもとづいて, 2人のプレイヤによる施設配置問題を定義し, これを二段階計画問題として表す. なお, 本節で用いる記法は~\citet{nemhauser:adm:1981}とは異なる. 
+
+2人のプレイヤとしてリーダおよびフォロワを考え, 両者が顧客の集合（ノード） $I$ に向けた施設を配置する状況を扱う. ノード $i \in I$ 向けに施設を配置すると, そのノードに存在する顧客需要のうち $h_{i}$ を獲得できるものとし, 需要の正規化のため $\sum_{i \in I} h_{i} = 1$ を仮定する. 
+
+リーダとフォロワは, それぞれ既存施設集合 $J^{\mathrm{L}}$ および $J^{\mathrm{F}}$ を保有しており, これらは互いに素であるとする, すなわち $J^{\mathrm{L}} \cap J^{\mathrm{F}} = \emptyset$ が成り立つ. さらに, 両者は候補地集合 $J$ に対して新たな施設を開設することができるものとする. 候補地集合 $J$ は既存施設集合とは重ならないと仮定し, $J \cap (J^{\mathrm{L}} \cup J^{\mathrm{F}}) = \emptyset$ が成り立つ. 
+
+この問題はシュタッケルベルグゲームとして定式化される. まずリーダが候補地集合 $J$ の中から最大 $p$ 個の施設を先行して配置し, その決定を観測したフォロワが, 残された候補地の中から最大 $r$ 個の施設を配置する. 1つの候補地に複数の施設が配置されることはなく, $p + r \le |J|$ を仮定する. 
+
+次に, リーダおよびフォロワの利益としてのシェア率を, 顧客選択モデルである多項ロジット（Multinomial Logit）に従って定義する. ノード $i$ に存在する顧客が施設 $j$ を利用することで得る効用を:
+\[
+u_{ij} := \alpha_{j} - \beta d_{ij} + \epsilon_{ij},
+\]
+とおく. ここで, $\alpha_{j}$ は施設 $j$ のサイズ, 評判, 価格などに依存する魅力を表し, $d_{ij}$ は顧客 $i$ から施設 $j$ までの距離などの負の要因を表す指標, $\beta > 0$ はその影響の大きさを表す係数である. また, $\epsilon_{ij}$ は標準ガンベル分布に従うランダムノイズとする. 
+
+顧客 $i$ が自己の効用を最大化するように施設を選択する場合, 多項ロジットモデルにより, 顧客 $i$ が施設 $j$ を選択する確率は:
+\[
+P_{ij} = \frac{\exp\{\alpha_{j} - \beta d_{ij}\}}{\sum_{k \in J_{0}} \exp\{\alpha_{k} - \beta d_{ik}\}},
+\]
+と表される. ただし, $J_{0}$ はリーダおよびフォロワが保有する既存施設と新規に開設された施設をすべて含む集合である. 
+
+リーダが獲得するシェア率は, ノードごとの需要重み $h_{i}$ と選択確率 $P_{ij}$ を用いて:
+\[
+\sum_{j \in J^{\mathrm{L}}} \sum_{i \in I} h_{i} P_{ij},
+\]
+と記述することができ, リーダはこのシェア率を最大化するように施設配置を決定する. 
+
+また, $w_{ij}$ を顧客 $i$ が施設 $j$ を利用したときに, その施設を保有するプレイヤに対して与える「重み付き効用」とし:
+\[
+w_{ij} = \exp\{\alpha_{j} - \beta d_{ij}\},
+\]
+と定義する. このとき, リーダもしくはフォロワが保有する既存施設を顧客 $i$ が利用する場合に, それぞれのプレイヤが得る効用は:
+\[
+U_{i}^{\mathrm{L}} = \sum_{j \in J^{\mathrm{L}}} w_{ij},\ \ 
+U_{i}^{\mathrm{F}} = \sum_{j \in J^{\mathrm{F}}} w_{ij}
+\]
+と表される. これらを用いると, リーダのシェア率は:
+\[
+L^{+}(x, y)
+:= \sum_{j \in J^{\mathrm{L}}}\sum_{i \in I} h_{i} P_{ij}
+= \sum_{i \in I} h_{i}
+\left(
+  \frac{U_{i}^{\mathrm{L}} + \sum_{j \in J} w_{ij} x_{j}}
+       {U_{i}^{\mathrm{L}} + U_{i}^{\mathrm{F}} + \sum_{j \in J} w_{ij} (x_{j} + y_{j})}
+\right),
+\]
+と書き換えられる. ここで, $x_{j}$ および $y_{j}$ はそれぞれリーダおよびフォロワが候補地 $j$ に新規施設を開設するかどうかを表す 0–1 変数である. 
+
+以上より, フォロワがリーダの選択に対して最適反応を返すと仮定すると, リーダのシェア率を最大化する施設配置問題は次の二段階計画問題として定義される. この問題を本文中では Sequential CFLP (S-CFLP) と呼ぶ:
+\begin{equation}
+\label{eq:S-CFLP}
+\begin{alignedat}{2}
+    & && \quad \max_{x}\ L^{+}(x, y^{*}) \\
+    &\text{s.t.} && \quad \sum_{j \in J} x_{j} \;\le\; p, \\
+    & && \quad x_{j} \in \{0,1\}, \quad \forall j \in J, \\[6pt]
+    &\text{where} && \quad
+    y^{*} \in \arg \max_{y}
+    \sum_{i \in I} h_{i}
+    \Biggl(
+      \frac{U_{i}^{\mathrm{F}} + \sum_{j \in J} w_{ij}\, y_{j}}
+           {U_{i}^{\mathrm{L}} + U_{i}^{\mathrm{F}} +
+            \sum_{j \in J} w_{ij}\, (x_{j} + y_{j})}
+    \Biggr) \\
+    &\text{s.t.} && \quad \sum_{j \in J} y_{j} \;\le\; r, \\
+    & && \quad y_{j} \;\le\; 1 - x_{j}, \quad \forall j \in J, \\
+    & && \quad y_{j} \in \{0,1\}, \quad \forall j \in J.
+\end{alignedat}
+\end{equation}
+
+ しかし一般に二段階計画問題は NP 困難な問題として知られており, 本問題 S-CFLP についても同様の困難性が成り立つ. 
+
+\begin{thm}[(Adapted from Theorem 3 of ~\citet{krause:jmlr:2008})]
+There does not exist a polynomial-time, constant approximation algorithm for (S-CFLP) unless $P=NP$. Specifically, let $z^{*}$ represent the optimal value of (S-CFLP). If there exists a constant $c_{0}>0$ and an algorithm, which runs in time polynomial in $|J|, p$ and guarantees to find a solution $x$ such that $L^{+}\left(x, y^{*}\right) \geq c_{0}z^{*}$, then $P=NP$.
+\end{thm}
+
+\section{突然変異付きラグランジュ勾配降下/上昇法}
+本研究では, マキシミン問題の代表的手法である LGDA (Lagrangian Gradient Descent Ascent)~\citep{goktas2022gradient} を基点として, 突然変異（mutation）項を付加したアルゴリズム~\ref{alg:prop}を用いる. 
+
+
+\begin{algorithm}[tb]
+\caption{LGDA with Mutation}
+\label{alg:prop}
+\begin{algorithmic}[1]
+\AlgInput $x_0,y_0,\lambda_0,\ \eta^x,\eta^y,\eta^\lambda,\ \mu,\ N$
+\State $c_x^0\gets x_0,\ c_y^0\gets y_0,\ \tau\gets 0,\ k\gets 0$
+\For{$t=0,\ldots,T-1$}
+    \State $x^{(t+1)} \gets \Pi_{X}\!\left(x^{(t)}+\eta^x\Bigl(\nabla_x f(x^{(t)},y^{(t)})+(\nabla_x g(x^{(t)},y^{(t)}))^\top \lambda^{(t)}-\mu(x^{(t)}-c_x^{k})\Bigr)\right)$
+    \State $y^{(t+1)} \gets \Pi_{Y}\!\left(y^{(t)}-\eta^y\Bigl(\nabla_y f(x^{(t)},y^{(t)})+(\nabla_y g(x^{(t)},y^{(t)}))^\top \lambda^{(t)}+\mu(y^{(t)}-c_y^{k})\Bigr)\right)$
+    \State $\lambda^{(t+1)} \gets \Pi_{\mathbb{R}_+^M}\!\left(\lambda^{(t)}+\eta^\lambda g(x^{(t)},y^{(t)})\right)$
+    \State $\tau \gets \tau + 1$
+    \If{$\tau = N$}
+        \State $k\gets k+1$
+        \State $c_x^{k}\gets x^{(t+1)},\ c_y^{k}\gets y^{(t+1)}$
+        \State $\tau\gets 0$
+    \EndIf
+\EndFor
+\Return $(x^{(T)},y^{(T)})$
+\end{algorithmic}
+\end{algorithm}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+LGDA では, $x\in\mathbb{R}^{n}$ を最大化側（上昇）, $y\in\mathbb{R}^{m}$ を最小化側（下降）の戦略とし, 
+次の問題を考える：
+\begin{equation}
+\label{eq:general_cpl_game}
+\max_{x\in X}\ \min_{y\in Y}\ f(x,y)
+\quad \text{s.t.}\quad g(x,y)\le \mathbf{0}.
+\end{equation}
+ここで $X\subset\mathbb{R}^{n}$, $Y\subset\mathbb{R}^{m}$ は実行可能領域, 
+$f:X\times Y\to\mathbb{R}$ は利得（目的）関数, 
+$g:X\times Y\to\mathbb{R}^{M}$ はベクトル値関数である. 
+
+制約式 $g(x,y)\le \mathbf 0$ に対し, ラグランジュ乗数 $\lambda\in\mathbb{R}^{M}_{+}$ を導入し, 
+ラグランジュ関数を
+\begin{equation}
+\label{eq:general_lagrangian}
+\mathcal{L}(x,y,\lambda)
+:= f(x,y)+\lambda^{\top} g(x,y),
+\qquad \lambda\ge \mathbf 0,
+\end{equation}
+と定義する. LGDA ではこのラグランジュ関数に対し, $x$ 方向の上昇（ascent）と $y$ 方向の下降（descent）を同時に行うことで鞍点を探索する手法である. 
+
+
+しかしながら, 極値以外の点でも勾配が $0$ になってしまう退化が生じる場合があり, その際には更新が停滞してしまうという課題がある. 
+
+例えば, 次のような問題を考える：
+\[
+\max_{p\in[-1,1]}\ \min_{q\in[-1,1]:\,1-(p+q)\ge 0}\ f(p,q)=p^{2}+q+1.
+\]
+
+このとき（$p$ を固定した内側の最大化問題に対する）ラグランジュ関数を:
+\[
+\mathcal{L}(p,q,\lambda)
+= p^{2}+q+1+\lambda\bigl(1-(p+q)\bigr),
+\qquad \lambda\ge 0,
+\]
+と定義する. 
+
+ここで, $\mathcal{L}(p,q,\lambda)$ の $q$ についての勾配を求めると
+$
+\nabla_{q}\mathcal{L}(p,q,\lambda)= 1-\lambda
+$
+となる. したがって $\lambda=1$ となると $\nabla_{q}\mathcal{L}(p,q,\lambda)=0$ である. 
+これを $q$ の更新式に代入すると:
+\[
+q^{(t+1)} = q^{(t)} + \eta^{q}_{t}\,\nabla_{q}\mathcal{L}\bigl(p^{(t)},q^{(t)},1\}\bigr)
+         = q^{(t)} + \eta^{q}_{t}\,(1-1),
+\]
+ゆえに 
+$
+q^{(t+1)} = q^{(t)}
+$
+となり, $q$ の値が更新されなくなる. このような問題を退化という. このような問題
+は, ある関数の極値を勾配を用いて求める手法においてよく見られる現象であり, アルゴ
+リズムが局所最適解や鞍点に陥ることを避けるための工夫が必要である. 
+
+この問題に対処するため, 本研究では LGDA に突然変異を導入する. 突然変異は, その時点の戦略 $x^{(t)},\,  y^{(t)}$ を基準戦略 $c_x^k, \, c_y^k$ に引き寄せる外力として作用する項であり, 標準型ゲームにおける均衡解の学習を促進し得ることが知られている~\citep{abe2022last}. ここで基準戦略とは, 収束の安定化を目的として導入される参照点であり, 各更新のステップでは戦略がこの点に引き寄せられるように補正が加えられる. この基準戦略は固定されたものではなく, $N$ ステップごとに最新の戦略 $x^{(t)}, \, y^{(t)}$ に更新される. すなわち:
+\[
+c_x^{k} = x^{kN},\qquad c_y^{k} = y^{kN}, \qquad k = 0,1,\ldots,\left\lfloor \frac{T}{N}\right\rfloor,
+\]
+と定義する. したがって, 全反復回数 $T$ に対する基準戦略の更新回数は
+$K=\left\lfloor \frac{T}{N}\right\rfloor$
+である. 
+更新式には学習率 $\eta^x, \, \eta^y$ を用い, 各ステップにおける更新の量を調整する. 突然変異圧 $\mu\in\mathbb{R}_+$ は基準戦略への引力の強さを表し, $\mu$ が大きいほど $x^{(t)}, \, y^{(t)}$ はそれぞれ $c_x^k, \, c_y^k$ に強く近づく. 勾配更新で一時的に実行不能となった場合でも射影 $\Pi_{X}(x)=\arg \max_{x \in X }||x - x^\prime||$ により最も近い候補点に戻すことで, 常に制約を満たしながら探索を継続できる. 
+
+\section{鞍点問題としての再定式化と連続緩和}
+S-CFLP は等価なマキシミン問題に変形できる\footnote{~\citet{qi:or:2024}では Robust Optimization モデルとして記述されているが, 本稿ではロバスト最適化と混同することを避けるため, 「マキシミン問題への変形」と記述する. }. すなわち, フォロワがリーダのシェア率を最小化するように敵対的に行動すると仮定すると, S-CFLP は次のマキシミン問題として表される:
+\begin{equation}
+\max_{x \in \mathcal{X}} \min_{y \in \mathcal{Y}(x)} L^{+}(x, y) \quad s.t. \ \  x+y-1\leq 0\label{eq:ex-RO}.
+\end{equation}
+ただし:
+$
+\mathcal{X} := \left\{x \in \{0,1\}^{|J|} : e^{\top} x \leq p \right\},\ \ 
+\mathcal{Y} := \left\{y \in \{0,1\}^{|J|} : e^{\top} y \leq r\right\}
+$
+と定義する. 
+
+
+また今回はLGDAベースのアルゴリズムのため, 利得関数として $L^{+}(x,y)$ の実数領域に拡張した関数$\widetilde{L}(x,y)$を:
+\begin{equation}
+\label{eq:Ltilde_def}
+\widetilde{L}(x,y)
+:=
+\sum_{i\in I} h_i
+\left(
+\frac{U_i^{\mathrm{L}}+\sum_{j\in J} w_{ij}x_j}
+     {U_i^{\mathrm{L}}+U_i^{\mathrm{F}}+\sum_{j\in J} w_{ij}(x_j+y_j)}
+\right),
+\qquad ((x,y)\in\hat{\mathcal{X}}\times\hat{\mathcal{Y}})
+\end{equation}
+と定義する. ここで$
+\hat{\mathcal{X}} := \left\{x \in [0,1]^{|J|} : e^{\top} x \leq p \right\},\ \ 
+\hat{\mathcal{Y}} := \left\{y \in [0,1]^{|J|} : e^{\top} y \leq r\right\}
+$である. 
+このとき, 本節で扱う結合制約付き max--min 問題は:
+\begin{equation}
+\label{eq:cc_game_primal}
+\max_{x\in\hat{\mathcal{X}}}\ \min_{y\in\hat{\mathcal{Y}}}\ \widetilde{L}(x,y)
+\quad\text{s.t.}\quad x+y\le\mathbf{1},
+\end{equation}
+で与えられる. 
+
+本稿で用いるアルゴリズムの収束解析には, 目的関数の勾配が Lipschitz 連続であることが重要となる. そこで 
+$\widetilde{L}(x,y)$の微分可能性と勾配 Lipschitz 性を確保するため, 分母の下限を仮定する. ~\eqref{eq:Ltilde_def} の分母を:
+\[
+D_i^{+}(x,y)
+:=
+U_i^{\mathrm{L}}+U_i^{\mathrm{F}}+\sum_{j\in J} w_{ij}(x_j+y_j),
+\qquad (i\in I)
+\]
+とおく. 以下では, $\widetilde{L}$ の微分可能性を確保するため, 
+分母が $0$ を跨がないことを仮定する（例えば $J^{\mathrm{L}}\cup J^{\mathrm{F}}\neq\emptyset$ であれば自然に満たされる）. 
+
+\begin{ass}[Denominator lower bound for $\widetilde{L}$]
+\label{ass:denom_lb_tilde}
+ある定数 $\underline{D}>0$ が存在して:
+\[
+D_i^{+}(x,y)\ge \underline{D},
+\qquad \forall i\in I,\ \forall (x,y)\in\hat{\mathcal{X}}\times\hat{\mathcal{Y}}
+\]
+が成り立つ. 
+\end{ass}
+
+仮定~\ref{ass:denom_lb_tilde} の下では, 各 $D_i^+(x,y)$ は $\hat{\mathcal{X}}\times\hat{\mathcal{Y}}$ 上で$0$を跨がないため, 
+$\widetilde{L}$ は $\hat{\mathcal{X}}\times\hat{\mathcal{Y}}$ 上で2回連続微分可能である：
+\[
+\widetilde{L}\in C^2(\hat{\mathcal{X}}\times\hat{\mathcal{Y}}).
+\]
+さらに$\hat{\mathcal X}\times\hat{\mathcal Y}$はコンパクトであり, 
+$\nabla^2\widetilde{L}$ は連続であるから
+$
+L_{\nabla}
+:=\sup_{(x,y)\in\hat{\mathcal X}\times\hat{\mathcal Y}}
+\left\|\nabla^{2}\widetilde{L}(x,y)\right\| <\infty
+\label{eq:def_Lnabla}
+$
+が成り立つ. よって任意の $(x,y),(x',y')\in\hat{\mathcal X}\times\hat{\mathcal Y}$ に対し:
+\begin{equation*}
+\left\|\nabla \widetilde{L}(x,y)-\nabla \widetilde{L}(x',y')\right\|
+\le L_{\nabla}\,\sqrt{\|x-x'\|^{2}+\|y-y'\|^{2}},
+\label{eq:Ltilde_grad_Lip}
+\end{equation*}
+すなわち $\nabla\widetilde{L}$ は $\hat{\mathcal X}\times\hat{\mathcal Y}$ 上で $L_{\nabla}$-Lipschitz 連続である. 
+
+また~\eqref{eq:cc_game_primal} において最も重要なのは, 
+$\widetilde{L}$ が$x$ に関して凹, $y$ に関して凸となる点である. 
+
+\begin{prop}[Concave in $x$ and convex in $y$]
+\label{prop:Ltilde_concave_convex}
+仮定~\ref{ass:denom_lb_tilde} の下で, 
+$\widetilde{L}$ を ~\eqref{eq:Ltilde_def} で定義する. 
+このとき任意の固定した $y\in\hat{\mathcal{Y}}$ に対し $\widetilde{L}(x,y)$ は $x$ に関して凹であり, 
+任意の固定した $x\in\hat{\mathcal{X}}$ に対し $\widetilde{L}(x,y)$ は $y$ に関して凸である. 
+\end{prop}
+
+\begin{proof}
+$i\in I$ を固定し
+$
+A_i(x):=U_i^{\mathrm{L}}+\sum_{j\in J} w_{ij}x_j,\qquad
+B_i(y):=U_i^{\mathrm{F}}+\sum_{j\in J} w_{ij}y_j
+$
+とおくと, 以下の関係が成り立つ:
+\[
+\frac{A_i(x)}{A_i(x)+B_i(y)}
+=
+1-\frac{B_i(y)}{A_i(x)+B_i(y)}.
+\]
+
+\noindent\textbf{(1) $x$ に関する凹性.}
+$y$ を固定すると $B_i(y)$ は定数であり, 
+仮定~\ref{ass:denom_lb_tilde} より $A_i(x)+B_i(y)>0$ が成り立つ. 
+$t>0$ 上の関数 $t\mapsto -\frac{1}{t}$ は凹であるから, 
+$t(x):=A_i(x)+B_i(y)$との合成:
+\[
+x\longmapsto -\frac{B_i(y)}{A_i(x)+B_i(y)},
+\]
+は凹となる. よって $x\mapsto \frac{A_i(x)}{A_i(x)+B_i(y)}$ は凹である. 
+
+\noindent\textbf{(2) $y$ に関する凸性.}
+$x$ を固定すると $A_i(x)$ は定数であり, 
+$t>0$ 上の関数 $t\mapsto \frac{1}{t}$ は凸である. 
+$t(y):=A_i(x)+B_i(y)$ は $y$ について正値なので:
+\[
+y\longmapsto \frac{A_i(x)}{A_i(x)+B_i(y)}
+= A_i(x)\cdot \frac{1}{A_i(x)+B_i(y)},
+\]
+は凸である. 
+
+最後に, $h_i\ge 0$ かつ $\sum_i h_i=1$ より, 
+凸（凹）関数の非負重み付き和は凸（凹）であるため, 
+~\eqref{eq:Ltilde_def} の $\widetilde{L}$ についても主張が従う. 
+\end{proof}
+
+命題~\ref{prop:Ltilde_concave_convex} により, 
+~\eqref{eq:cc_game_primal} は鞍点を持つゲームとなる. 
+この場合には, APMD の理論枠組みを適用する際の
+前提が満たされるため, 反復求解後の解が鞍点へ収束するという議論へ接続しやすくなる. 
+
+
+
+
+\subsection{ラグランジュ緩和と鞍点問題}
+~\eqref{eq:cc_game_primal} のカップリング制約は直積構造を壊すため, 
+単純な「$x$ と $y$ への個別射影」では処理できない. 
+そこでカップリング制約:
+\[
+g(x,y):=x+y-\mathbf{1}\le \mathbf{0},
+\]
+に対するラグランジュ乗数 $\lambda\in\mathbb{R}_+^{|J|}$ を導入し, 
+ラグランジュ関数を:
+\begin{equation}
+\label{eq:cc_lagrangian}
+\mathcal{L}_{\mathrm{cpl}}(x,y,\lambda)
+:=\widetilde{L}(x,y)+\lambda^\top(x+y-\mathbf{1}),
+\qquad \lambda\ge \mathbf{0},
+\end{equation}
+と定義する. 
+このとき~\eqref{eq:cc_game_primal} は
+次の鞍点問題として扱える：
+\begin{equation}
+\label{eq:cc_game_lagrangian}
+\max_{x\in\hat{\mathcal{X}}}\ \min_{y\in\hat{\mathcal{Y}}}\ \max_{\lambda\in\mathbb{R}_+^{|J|}}
+\ \mathcal{L}_{\mathrm{cpl}}(x,y,\lambda).
+\end{equation}
+
+
+式~\eqref{eq:cc_game_lagrangian} を解くため, 
+$x$ と $\lambda$ を上昇, $y$ を下降させる LGDA法に, 
+退化回避のための突然変異項を組み合わせる. 
+エポック $k$ で固定された基準点 $c_x^k,c_y^k$ に対し, 
+正則化付きラグランジュ関数を:
+\[
+\widetilde{\mathcal{L}}_{\mathrm{cpl}}^{\,k}(x,y,\lambda)
+:=
+\mathcal{L}_{\mathrm{cpl}}(x,y,\lambda)
+-\frac{\mu}{2}\|x-c_x^k\|^2
++\frac{\mu}{2}\|y-c_y^k\|^2,
+\qquad \mu>0,
+\]
+と定義する. 
+
+~\eqref{eq:cc_game_lagrangian} における双対変数 $\lambda\in\mathbb{R}_+^{|J|}$ は, 
+カップリング制約:
+\[
+g(x,y):=x+y-\mathbf{1}\le \mathbf{0},
+\]
+をラグランジュ項 $\lambda^\top g(x,y)$ によって厳密に担保する役割を持つ. 
+すなわち, ある $(x,y)$ が制約を破り $g(x,y)$ の成分に正の値が存在する場合, 
+$\lambda\ge \mathbf{0}$ に関する最大化により
+$\mathcal{L}_{\mathrm{cpl}}(x,y,\lambda)$ を任意に大きくできるため, 
+鞍点解では違反が抑制される. 
+このため, 本稿では正則化は  主変数 $(x,y)$ にのみ付与し:
+\[
+\widetilde{\mathcal{L}}_{\mathrm{cpl}}^{\,k}(x,y,\lambda)
+=
+\mathcal{L}_{\mathrm{cpl}}(x,y,\lambda)
+-\frac{\mu}{2}\|x-c_x^k\|^2
++\frac{\mu}{2}\|y-c_y^k\|^2,
+\]
+と定義する一方で, $\lambda$ には正則化項を加えない. 
+実際, 最大化変数である $\lambda$ に対して
+$-\frac{\mu_\lambda}{2}\|\lambda-c_\lambda^k\|^2$ のような二次項を加えると
+上昇限界がバイアスされる, つまり制約違反点における$\max _{\lambda \geq 0} \mathcal{L}_{\mathrm{cpl}}(x, y, \lambda)$の非有界性が失われ, カップリング制約の担保が弱まる可能性がある. 
+同様に, $\lambda$ に関する停留条件も
+$g(x,y)=\mathbf{0}$から
+$g(x,y)-\mu_\lambda(\lambda-c_\lambda^k)=\mathbf{0}$ へと変化し, 
+一般に相補性（complementary slackness）を厳密には回復しない. 
+上記の議論より, 本稿では $\lambda$ を正則化せず, 
+~\eqref{eq:cc_game_primal} の制約構造と解釈を保ったまま主変数, 並びにラグランジュ乗数の更新を行う. 
+
+以上より勾配はそれぞれ以下の式で行う:
+\begin{align*}
+    \nabla_x \widetilde{\mathcal{L}}_{\mathrm{cpl}}^{\,k}
+&=\nabla_x\widetilde{L}(x,y)+\lambda-\mu(x-c_x^k), \\
+\nabla_y \widetilde{\mathcal{L}}_{\mathrm{cpl}}^{\,k}
+&=\nabla_y\widetilde{L}(x,y)+\lambda+\mu(y-c_y^k), \\
+\nabla_\lambda \widetilde{\mathcal{L}}_{\mathrm{cpl}}^{\,k}
+&=x+y-\mathbf{1}.
+\end{align*}
+
+よって射影付き更新は次で与えられる：
+\begin{equation}
+\label{eq:pd_updates}
+\begin{aligned}
+x^{(t+1)}
+&=
+\Pi_{\hat{\mathcal X}}\!\Bigl(
+x^{(t)}+\eta^x\bigl(\nabla_x\widetilde{L}(x^{(t)},y^{(t)})+\lambda^{(t)}-\mu(x^{(t)}-c_x^k)\bigr)
+\Bigr),\\
+y^{(t+1)}
+&=
+\Pi_{\hat{\mathcal Y}}\!\Bigl(
+y^{(t)}-\eta^y\bigl(\nabla_y\widetilde{L}(x^{(t)},y^{(t)})+\lambda^{(t)}+\mu(y^{(t)}-c_y^k)\bigr)
+\Bigr),\\
+\lambda^{(t+1)}
+&=
+\Pi_{\mathbb{R}_+^{|J|}}\!\Bigl(
+\lambda^{(t)}+\eta^\lambda\bigl(x^{(t+1)}+y^{(t+1)}-\mathbf{1}\bigr)
+\Bigr).
+\end{aligned}
+\end{equation}
+ここで $\Pi_{\mathbb{R}_+^{|J|}}(u)=[u]_+$ は成分ごとの非負射影である. 
+基準点は $N$ ステップごとに更新し:
+\[
+c_x^{k}=x^{kN},\qquad c_y^{k}=y^{kN},
+\qquad k=0,1,\dots,\Bigl\lfloor\frac{T}{N}\Bigr\rfloor,
+\]
+とする. 
+
+\begin{algorithm}[tb]
+\caption{LGDA with Mutation for S-CFLP}
+\label{alg:PD-LGDA-with-Mutation}
+\begin{algorithmic}[1]
+\AlgInput $x_0,y_0,\lambda_0,\ \eta^x,\eta^y,\eta^\lambda,\ \mu,\ N$
+\State $c_x^0\gets x_0,\ c_y^0\gets y_0,\ \tau\gets 0,\ k\gets 0$
+\For{$t=0,\ldots,T-1$}
+    \State $x^{(t+1)} \gets \Pi_{\hat{\mathcal X}}\!\left(x^{(t)}+\eta^x\Bigl(\nabla_x\widetilde{L}(x^{(t)},y^{(t)})+\lambda^{(t)}-\mu(x^{(t)}-c_x^{k})\Bigr)\right)$
+    \State $y^{(t+1)} \gets \Pi_{\hat{\mathcal Y}}\!\left(y^{(t)}-\eta^y\Bigl(\nabla_y\widetilde{L}(x^{(t)},y^{(t)})+\lambda^{(t)}+\mu(y^{(t)}-c_y^{k})\Bigr)\right)$
+    \State $\lambda^{(t+1)} \gets \Pi_{\mathbb{R}_+^{|J|}}\!\left(\lambda^{(t)}+\eta^\lambda\bigl(x^{(t)}+y^{(t)}-\mathbf{1}\bigr)\right)$
+    \State $\tau \gets \tau + 1$
+    \If{$\tau = N$}
+        \State $k\gets k+1$
+        \State $c_x^{k}\gets x^{(t+1)},\ c_y^{k}\gets y^{(t+1)}$
+        \State $\tau\gets 0$
+    \EndIf
+\EndFor
+\Return $(x^{(T)},y^{(T)})$
+\end{algorithmic}
+\end{algorithm}
+
+
+
+\subsection{主双対ギャップによる解の評価}
+本節では, 反復点 $(x^t,y^t)$ が鞍点にどれだけ近いかを数値的に評価するため, 
+相手の戦略を固定した片側最適反応に基づく主双対ギャップ（primal--dual gap）を導入する. 
+この主双対ギャップは凸最適化の主双対法や凸‐凹鞍点問題で収束判定や精度保証として使われる手法である~\citep{chambolle2011first,trandinh2015optimal}. 
+
+
+
+
+ここで $y^t$ を固定したときに $x$ 側が得られる最良値は
+$\max_{x\in\hat{\mathcal X}:\ x+y^t\le \mathbf 1}\widetilde L(x,y^t)$ であり, 
+その値と現在の値 $\widetilde L(x^t,y^t)$ の差:
+\[
+\Delta_x^t :=
+\max_{x\in\hat{\mathcal X}:\ x+y^t\le \mathbf 1}\widetilde L(x,y^t)-\widetilde L(x^t,y^t),
+\]
+は, 相手を $y^t$ に固定したときに, $x^t$ がどれだけ改善可能かを表す. 
+同様に $x^t$ を固定したときの $y$ 側の最良値は
+$\min_{y\in\hat{\mathcal Y}:\ x^t+y\le \mathbf 1}\widetilde L(x^t,y)$ であり,
+その値と現在の値 $\widetilde L(x^t,y^t)$ の差:
+\[
+\Delta_y^t :=
+\widetilde L(x^t,y^t)-\min_{y\in\hat{\mathcal Y}:\ x^t+y\le \mathbf 1}\widetilde L(x^t,y),
+\]
+は, 相手を $x^t$ に固定したときに, $y^t$ がどれだけ改善可能かを表す. 
+以上を用いて主双対ギャップを:
+\[
+\mathrm{Gap}(x^t,y^t):=\Delta_x^t+\Delta_y^t,
+\]
+と定義する. このとき $\widetilde L(x^t,y^t)$ が相殺されるため, 同値に:
+\[
+\mathrm{Gap}(x^t,y^t)
+=\max_{x\in\hat{\mathcal X}:\ x+y^t\le\mathbf 1}\widetilde L(x,y^t)
+-\min_{y\in\hat{\mathcal Y}:\ x^t+y\le\mathbf 1}\widetilde L(x^t,y),
+\]
+とも表せる. 
+定義より $\Delta_x^t\ge0$ および $\Delta_y^t\ge0$ が成り立つため, 
+$\mathrm{Gap}(x^t,y^t)\ge0$ が常に成り立つ. 
+また, $(x^\ast,y^\ast)$ が問題 ~\eqref{eq:cc_game_primal} の鞍点であれば, 
+$y^\ast$ を固定したとき $x^\ast$ は最適反応であり, 
+$x^\ast$ を固定したとき $y^\ast$ も最適反応であるから
+$\Delta_x^\ast=\Delta_y^\ast=0$, 従って $\mathrm{Gap}(x^\ast,y^\ast)=0$ が成り立つ. 
+
+さらに, $\mathrm{Gap}(x^t,y^t)\le \varepsilon$ であるとき, 
+$x+y^t\le\mathbf 1$を満たす任意の実行可能な $x\in\hat{\mathcal X}$と
+$x^t+y\le\mathbf 1$を満たす任意の実行可能な $y\in\hat{\mathcal Y}$に対して:
+\begin{align*}
+    \widetilde L(x,y^t)\le \widetilde L(x^t,y^t)+\varepsilon, \\
+\widetilde L(x^t,y)\ge \widetilde L(x^t,y^t)-\varepsilon,
+\end{align*}
+が同時に成り立つ. 
+すなわち, 片側のみの逸脱によって得られる改善は高々 $\varepsilon$ であり, 
+$(x^t,y^t)$ は一方的改善がほぼ不可能な近似鞍点と解釈できる. 
+したがって本研究では, $\mathrm{Gap}(x^t,y^t)$ が十分小さいことをもって, 反復点が鞍点近傍に到達したと判断する. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\section{計算機実験}
+
+文献手法~\citep{qi:or:2024}および提案手法の数値実験はIntel Core(TM) i9-13980HX 5.60 GHz CPU, 32G RAMを搭載した64-bit Windows 11上で実施した. $[0, 50] \times [0, 50]$の格子点上に顧客集合$I$と施設候補地の集合$J$をランダムに生成し, その際, 規模は$|I|=|J| \in \{20,40,60,80,100,200,300\}$とした. 顧客需要$h_i$は離散一様分布を仮定し, \, $\beta = 0. 1, \ \alpha_j = 0, \ \forall j \in J$と設定した. %また, 両プイレイヤは既存の施設を持たない状況$J^L = J^F = \emptyset$を想定した. 
+リーダが配置できる施設数の上限$p$, およびフォロワが配置できる施設数の上限$r$は$(p,r)=(2,2),(2,3),(3,3)$の3通りり扱い, それぞれの結果を表~\ref{tb:all-pr}にまとめた.  提案手法では, 学習率をそれぞれ$\eta^x = \eta^y = \eta^{\lambda} = 0.01$, 突然変異圧は$\mu=0.05$とし, 反復回数$T=400,000$期で計算を行った. また突然変異項は$N=10,000$期ごとに更新した. 
+計算時間は, 各規模についてランダムに生成した 10 個のインスタンスに対し, 同一設定で計算を行った際の実行時間の平均値を示している. シェア率については同様の10 個のインスタンスに対して下記に示す通りに算出し, その平均を記載している. 
+
+表~\ref{tb:all-pr}のシェア率は次の手順で算出した. まず全探索では, S-CFLPそのものを求解した. 具体的にはまずリーダの決定$x \in \mathcal X$を列挙し, 各$x$に対してフォロワの最適反応$y^*(x) \in \arg \max _{y \in \mathcal{Y}(x)} \sum_{i \in I} h_i\left(\frac{U_i^{\mathrm{F}}+\sum_{j \in J} w_{i j} y_j}{U_i^{\mathrm{L}}+U_i^{\mathrm{F}}+\sum_{j \in J} w_{i j}\left(x_j+y_j\right)}\right)$をカップリング制約を満たすものを全列挙により求め, そのうえで$L^{+}\left(x, y^*(x)\right)$を最大化する$x$を選ぶことで均衡値を算出した. したがって, 全探索のシェア率は実行可能な$(x,y)$の単純列挙による上界ではなく, フォロワが最適反応を返すというゲーム構造を反映した均衡値である. またこれの計算に際し, 上記の環境では計算量が大きく求解に時間を要したため, さらにスペックの高い環境で算出を行った. そのため, 計算時間に関しては掲載をしない. 次に文献手法では, \(\widehat L\) に基づくMIP (Mixed Integer Problem)を分枝カット法で解き, 
+離散解 \((x^{\mathrm{mip}},y^{\mathrm{mip}})\in\mathcal X\times\mathcal Y\) を得る. 
+表に示すシェア率は, この離散解を \(L^{+}(x^{\mathrm{mip}},y^{\mathrm{mip}})\) に代入して計算した. 最後に提案手法では, 連続緩和集合 \(\hat{\mathcal X}\times\hat{\mathcal Y}\) 上で反復更新を行い, 
+連続値の解 \((x^{\mathrm{cont}},y^{\mathrm{cont}})\) を得る. その後, \(x\) は成分の大きい順に上位 \(p\) 個を \(1\), 残りを \(0\) とする
+丸めにより \(\tilde x\in\mathcal X\) を構成し, \(y\) は$x$の選択した候補地以外の候補地から成分の大きい順に上位 \(r\) 個を \(1\), 残りを \(0\) とする
+丸めにより \(\tilde y\in\mathcal Y\) を構成した. 
+表に示すシェア率は, 丸め後の解 \((\tilde x,\tilde y)\) に対して \(L^{+}(\tilde x,\tilde y)\) を計算した値である. また, 表~\ref{tb:all-pr}内の絶対誤差に関しては全探索のシェア率とそれぞれのシェア率の絶対誤差を記載している. 
+
+計算時間については, $|I| \leq 40$ の場合にはいずれの$(p,r)$においても文献手法の方が高速であり, 提案手法はそれに比べ約1.7倍から33.1倍の計算時間を要した. 一方, $|I|\ge200$ の場合にはいずれの$(p,r)$においても提案手法の方が高速であり, 文献手法と比べて約2.6倍から9.2倍の速度向上が見られた. 
+
+シェア率の精度に関しては, 全探索のシェア率を基準とした絶対誤差が, 
+文献手法では $0.008$--$0.038$ であるのに対し, 提案手法では $0.000$--$0.009$ と小さく, 
+表~\ref{tb:all-pr}に示すすべての事例で提案手法の方が全探索値に近いシェア率を与えた. 
+
+また, 図~\ref{fig:convergence}(a),(b)は, $(|I|-|J|-p-r) = (100 - 100 - 2 - 2)$に対する提案手法の反復過程における更新量のノルム\(\|\Delta x^{t}\|= ||x^{t+1}-x^t||\), \(\|\Delta y^t\|=\|y^{t+1}-y^t\|\)
+の推移を, 最初の$30{,}000$反復について拡大して示したものである. 
+いずれの変数についても, 突然変異を導入したタイミングで一時的に更新量が増大するものの, 
+その後は急速に減衰し, 十分小さな値に収束していることが分かる. 
+また図~\ref{fig:convergence}(c),(d)より, $\|\Delta x^t\|,\|\Delta y^t\|$は反復とともに全体として減衰傾向を示し, 
+制約違反時にスパイクが観測されるものの, いずれも速やかに減衰して最終的に 0 近傍へ収束していることが確認できる. 
+
+
+さらに, 図~\ref{fig:convergence}(e)は制約式の違反量の推移を示す. ここでは各成分について
+$(x+y-1)_+ := \max(x+y-1,0)$ を計算し, その平均値 $\mathrm{mean}((x+y-1)_+)$ と最大値 $\max((x+y-1)_+)$ を併せて描画している. 
+図より, 平均違反量は全反復を通じてほぼ 0 に保たれており, 多くの成分で実行可能性が維持されていることが分かる. 
+一方で最大違反量は一部の反復で隆起するが, その大きさは最大でも $0.004$ 程度に留まり, 
+発生後は速やかに 0 近傍へ戻っている. 
+
+また, 図~\ref{fig:convergence}(f)はギャップの推移を示す. 初期にはギャップが $0.02$ 程度であるものの, 
+反復の初期段階で急速に減少し, その後はほぼ 0 に張り付いたまま安定的に推移している. 
+
+\begin{figure}[tb]
+  \centering
+  % --- 最初の 3,000 期: 2 枚並べる ---
+  \begin{subfigure}{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{fig/lgda_exp1_seed_2234313259_eta_0.01_mu_0.05_iter_500000_tau_10000_30000_dx}
+    \caption{\(\|\Delta x\|\) の推移（最初の 30{,}000 期）}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{fig/lgda_exp1_seed_2234313259_eta_0.01_mu_0.05_iter_500000_tau_10000_30000_dy}
+    \caption{\(\|\Delta y\|\) の推移（最初の 30{,}000 期）}
+  \end{subfigure}
+
+  \vspace{1em}
+
+
+  % --- 全期間: 2 枚並べる ---
+  \begin{subfigure}{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{fig/lgda_exp1_seed_2234313259_eta_0.01_mu_0.05_iter_500000_tau_10000_400000_dx}
+    \caption{\(\|\Delta x\|\) の推移（全 400{,}000 期）}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{fig/lgda_exp1_seed_2234313259_eta_0.01_mu_0.05_iter_500000_tau_10000_400000_dy}
+    \caption{\(\|\Delta y\|\) の推移（全 400{,}000 期）}
+  \end{subfigure}
+
+  \vspace{1em}
+
+    \begin{subfigure}{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{fig/lgda_exp1_seed_2234313259_eta_0.01_mu_0.05_iter_500000_tau_10000_400000_violation}
+    \caption{制約式の違反量の推移（全 400{,}000 期）}
+  \end{subfigure}
+    \hfill
+  \begin{subfigure}{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{fig/lgda_exp1_seed_2234313259_eta_0.01_mu_0.05_iter_500000_tau_10000_400000_gap}
+    \caption{ギャップの推移（全 400{,}000 期）}
+  \end{subfigure}
+
+
+
+  \caption{提案手法における更新量のノルムおよび目的関数値の推移}
+  \label{fig:convergence}
+
+
+
+  
+\end{figure}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\clearpage
+\begin{table}[H] % [p] にして「表だけのページ」を作りやすくする
+  \centering
+  %\scriptsize % ←ここが効く（まず \footnotesize でも試せます）
+  \setlength{\tabcolsep}{2pt}
+ \renewcommand{\arraystretch}{0.92}
+
+  % キャプション周りの余白を詰める（このtable内だけに効かせる）
+  % \captionsetup{font=small, skip=2pt}
+  % \captionsetup[subtable]{font=small, skip=1pt}
+
+  \caption{~\citet{qi:or:2024} と提案手法のシェア率・絶対誤差および計算時間}
+  \label{tb:all-pr}
+
+  \begin{subtable}{\linewidth}
+    \centering
+    \caption{$p,r=(2,2)$}
+    % \setlength{\tabcolsep}{2pt}
+    % \renewcommand{\arraystretch}{0.92}
+    \begin{tabular}{c|c|ccc|ccc}
+      \hline
+      事例 $(|I|-|J|)$ & 全探索 &
+      \multicolumn{3}{c|}{文献手法} &
+      \multicolumn{3}{c}{提案手法} \\
+      \cline{2-8}
+      & シェア率 & シェア率 & 絶対誤差 & 計算時間 (s) & シェア率 & 絶対誤差 & 計算時間 (s) \\
+      \hline
+      20-20   &0.502& 0.525 & 0.023 & 3.08    & 0.503 & 0.001 & 89.93 \\
+      40-40   &0.503& 0.537 & 0.034 & 10.17   & 0.503 & 0.000 & 92.61 \\
+      60-60   &0.502& 0.537 & 0.035 & 20.78   & 0.501 & 0.001 & 95.50 \\
+      80-80   &0.502& 0.528 & 0.026 & 72.04   & 0.501 & 0.001 & 95.19 \\
+      100-100 &0.501& 0.527 & 0.026 & 70.68   & 0.501 & 0.000 & 98.04 \\
+      200-200 &0.502& 0.525 & 0.023 & 773.88  & 0.500 & 0.002 & 230.54 \\
+      300-300 &0.503& 0.520 & 0.017 & 2372.23 & 0.500 & 0.003 & 257.94 \\
+      \hline
+    \end{tabular}
+  \end{subtable}
+
+  \vspace{2mm} % ←ここは 0〜2mm で調整
+
+  \begin{subtable}{\linewidth}
+    \centering
+    \caption{$p,r=(3,2)$}
+    % \setlength{\tabcolsep}{2pt}
+    % \renewcommand{\arraystretch}{0.92}
+    \begin{tabular}{c|c|ccc|ccc}
+      \hline
+      事例 $(|I|-|J|)$ & 全探索 &
+      \multicolumn{3}{c|}{文献手法} &
+      \multicolumn{3}{c}{提案手法} \\
+      \cline{2-8}
+      & シェア率 & シェア率 & 絶対誤差 & 計算時間 (s) & シェア率 & 絶対誤差 & 計算時間 (s) \\
+      \hline
+      20-20   &0.606& 0.629 & 0.023 & 8.20    & 0.602 & 0.004 & 94.87 \\
+      40-40   &0.604& 0.627 & 0.023 & 57.88   & 0.602 & 0.002 & 96.48 \\
+      60-60   &0.604& 0.620 & 0.016 & 182.34  & 0.601 & 0.003 & 96.78 \\
+      80-80   &0.601& 0.617 & 0.016 & 280.21  & 0.600 & 0.001 & 97.80 \\
+      100-100 &0.603& 0.616 & 0.013 & 561.31  & 0.600 & 0.003 & 99.32 \\
+      200-200 &0.606& 0.614 & 0.008 & 1091.72 & 0.600 & 0.006 & 230.17 \\
+      300-300 &0.602& 0.613 & 0.011 & 1974.69 & 0.600 & 0.002 & 254.06 \\
+      \hline
+    \end{tabular}
+  \end{subtable}
+
+  \vspace{2mm}
+
+  \begin{subtable}{\linewidth}
+    \centering
+    \caption{$p,r=(2,3)$}
+    % \setlength{\tabcolsep}{2pt}
+    % \renewcommand{\arraystretch}{0.92}
+    \begin{tabular}{c|c|ccc|ccc}
+      \hline
+      事例 $(|I|-|J|)$ & 全探索 &
+      \multicolumn{3}{c|}{文献手法} &
+      \multicolumn{3}{c}{提案手法} \\
+      \cline{2-8}
+      & シェア率 & シェア率 & 絶対誤差 & 計算時間 (s) & シェア率 & 絶対誤差 & 計算時間 (s) \\
+      \hline
+      20-20   &0.409& 0.447 & 0.038 & 2.86   & 0.404 & 0.005 & 94.56 \\
+      40-40   &0.405& 0.442 & 0.037 & 6.69   & 0.402 & 0.003 & 95.69 \\
+      60-60   &0.403& 0.436 & 0.033 & 28.28  & 0.401 & 0.002 & 96.11 \\
+      80-80   &0.401& 0.441 & 0.040 & 38.64  & 0.401 & 0.000 & 96.32 \\
+      100-100 &0.402& 0.428 & 0.026 & 234.84 & 0.401 & 0.001 & 97.01 \\
+      200-200 &0.409& 0.428 & 0.019 & 588.72 & 0.400 & 0.009 & 230.78 \\
+      300-300 &0.401& 0.428 & 0.027 & 939.69 & 0.400 & 0.001 & 256.77 \\
+      \hline
+    \end{tabular}
+  \end{subtable}
+\end{table}
+
+
+
+
+
+
+
+
+
+\section{議論}
+\label{sec:discussion}
+
+本節では, 表~\ref{tb:all-pr} および図~\ref{fig:convergence} の数値結果にもとづき, 
+提案手法の有効性と限界を整理し, 
+適用可能な状況と今後の課題を論じる. 
+
+\subsection{計算効率に関する知見}
+表~\ref{tb:all-pr} より, $|I|=|J|\le 40$ の小規模では, 
+文献手法~\citep{qi:or:2024}の方が総じて高速である. 
+これは, 提案手法が反復回数 $T=500{,}000$ の勾配更新を前提としており, 
+小規模では反復に要する一定の計算コストが相対的に支配的となるためであると考える. 
+
+一方で, $|I|=|J|\ge 200$ の大規模では, 文献手法の計算時間が急増するのに対し, 
+提案手法は比較的緩やかな増加に留まり, 結果として提案手法が優位となる傾向が確認できる. 
+この挙動は, 組合せ探索を内包する分枝カット法の負荷が規模とともに顕在化しやすいこと, 
+ならびに提案手法が連続領域上での勾配計算を中心とした反復計算へ計算資源を配分していることと整合的であると考える. 
+以上より, 計算時間の観点では, 小規模では文献手法が有利であり, 大規模では連続緩和に基づく反復法が有利になり得る
+という実務的な棲み分けが示唆される. 
+
+\subsection{シェア率に関する知見}
+シェア率の精度については, 全探索を行い, 逐次ゲームとしての均衡値を基準とした絶対誤差が, 
+文献手法では $0.008$--$0.040$, 提案手法では $0.000$--$0.026$ となり, 
+表~\ref{tb:all-pr} に示すすべての事例で提案手法の方が全探索値に近い値を与えた. 
+この結果は, 連続緩和により探索空間が拡張される一方で, $\widetilde{L}$ の $x$ に関する凹性と$y$ に関する凸性が
+鞍点探索としての安定性を与えていること, また得られた連続解に対する単純な丸めであっても, 
+シェア率の観点では良好な離散解へ移行できていることを示唆している. 
+
+他方で丸め操作自体は最適性保証を持たないため, $x$ と $y$ の成分が拮抗している局面などでは, 丸めの僅かな差が最終的な $L^{+}$ を変動させ得る. 
+この点は, 丸め後の解品質をより安定化させる余地を意味しており, 
+例えば $x$ を固定した上での $y$ の再最適化, あるいはフォロワ最適反応の再計算といった局所探索を後処理として組み合わせることが有効と考える. 
+
+\subsection{反復挙動・制約充足・退化回避に関する知見}
+図~\ref{fig:convergence} より, 更新量ノルム $\|\Delta x^t\|,\|\Delta y^t\|$ は, 
+突然変異項の更新のタイミングで一時的に増大するものの, 
+その後は速やかに減衰し, 長期的にも安定して小さくなる傾向が確認できる. 
+これは, 突然変異項が停滞を回避するための摂動として機能しつつ, 
+それの逐次更新により影響が過度に累積しない形で運用できていることを示している. 
+
+また制約違反量について, 平均違反量が全反復を通じてほぼ 0 に保たれ, 
+最大違反量も小さい範囲に抑制されていることから, 
+$\lambda$ 更新がカップリング制約 $x+y\le \mathbf{1}$ の違反を数値的に抑える役割を果たしているといえる. 
+さらに主双対ギャップが初期に急速に減少し, その後ほぼ 0 に張り付く挙動は, 
+反復点が片側の最適反応による改善余地が小さい近似鞍点として安定化していることを支持する. 
+
+
+
+\subsection{限界と今後の課題}
+本研究の限界と今後の課題を以下にまとめる：
+\begin{itemize}
+  \item \textbf{ハイパーパラメータ依存性：}
+  学習率 $(\eta^x,\eta^y,\eta^\lambda)$, 突然変異圧 $\mu$, 更新間隔 $N$, 反復回数 $T$ は, 
+  収束速度と解品質の双方に影響し得る. 減衰学習率や適応的ステップサイズ, 
+  あるいは $\mu$ のスケジューリングなど, 自動調整機構の導入が課題である. 
+  \item \textbf{丸めと離散最適化の接続：}
+  本稿では単純な丸めにより離散解を構成したが, 丸めは最適性保証を持たない. 
+  丸め後の局所探索や, 丸めた $x$ に対する $y$ の再最適化を組み合わせることで, 
+  解品質の安定化が期待できる. 
+  \item \textbf{理論保証の拡張：}
+  連続緩和上の鞍点収束と, 丸め後の離散解の近似性能に関して, 理論的保証はできていない. 
+  離散化による性能劣化の評価）や, 目的関数構造を活用した誤差解析は今後の重要課題である. 
+  \item \textbf{設定の多様化と外的妥当性：}
+  本実験はランダムに生成した合成データに基づく. 
+  $\alpha_j$ の異質性, 既存施設の存在, より広い $(p,r)$, 
+  さらに外部選択肢や多社競争への拡張など, 
+  現実的設定における頑健性評価が必要である. 
+\end{itemize}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\section*{謝辞}
+本研究を進めるにあたり, 多くの方々にご協力をいただきました. 
+指導教員である岩崎敦准教授には, 研究の進め方から, 文章の書き方, 発表スライドの作り方まで, 多大なご指導をいただきました. 
+毎朝の英語ミーティングに始まり, 研究について行き詰ったときも励みになる言葉をかけていただくなど, 精神面等多方面で多大なサポートをしていただきました. 心から感謝申し上げます. 
+また, 長濱章仁助教には研究室でも普段からお声がけいただき, 研究の励みとなりました. 
+ニューヨーク大学の池上慧様には, 研究を進める上で専門的なご意見を数多くいただきました. マクロ経済学の初学者で右も左も分からいない僕でしたが様々な参考文献をあげて下さり, また毎週のミーティングでも多角的にわかりやすく教示くださりました. 
+みなさまに, 深く感謝申し上げます. 
+
+先生方のみならず, 岩崎研究室のメンバーにも大変お世話になりました. 
+島田さんには研究活動において, 研究に必要な物品の購入や, 学会の事務処理など, 様々なご支援をいただきました. 
+谷川颯希君や石橋宙希君には他愛ない会話から研究の相談までいろいろなお話に乗ってくれました. 学生生活では仲良くしてくれる皆なでしたが個々の研究では模範となる姿を示してくれ僕もそれに続くことができました. 
+厚くお礼申し上げます. 最後に生活費や精神面等たくさんの助力をいただいた両親に感謝いたします. 
+
+
+\newpage
+\newpage
+\bibliographystyle{plainnat}
+
+\bibliography{reference}
+
+\newpage
+\appendix
+
+\renewcommand{\thethm}{\Alph{section}.\arabic{thm}}
+\renewcommand{\theprop}{\Alph{section}.\arabic{prop}}
+
+\section{定理~\ref{const}の証明}\label{app:proof}
+\begin{thm*}
+    制約問題に対し, ある$\theta$が存在して, 等価な乗数問題に書き換えることができる. 
+    \end{thm*}
+    
+\begin{proof}
+%詳細な証明はHansen,Sargent,Turmuhambetova~\cite[Claim 5.4]{hansen2006robust}を参照せよ. 
+
+はじめに双対変数$\theta$を用いて~\eqref{eq:constraint problem}を変形する: 
+\begin{equation}\label{lagrange}
+    \max_{\left\{c_t\right\}_{t=0}^{\infty}} \min_{\left\{w_{t+1}\right\}_{t=0}^{\infty}} \max_{\theta > \underline{\theta}} \mathbb{E}_0 \left[\sum_{t=0}^{\infty} -\beta^t (\gamma-c_t)^2+\theta\left(R(w)-\eta_0\right)\right].
+\end{equation}
+$\theta$は条件式$R(w)\leq \eta_0$を満たすのにかかる費用と考えることができる. $R(w)- \eta_0 >0$となるような$w_{t+1}$を選らんでいたら$\theta\rightarrow +\infty$となり, 限りなく不確実性を含まないモデルに近づくことを意味する. $R(w)- \eta_0 \leq0$となるような$w_{t+1}$を選らんでいたら$\theta\rightarrow 0$となる. 以上の理解の下で式~\eqref{eq:constraint problem}と式~\eqref{lagrange}は等価な問題である. 
+
+式~\eqref{lagrange}において$\theta$は$c_t,w_{t+1}$に依存せず, $\theta\rightarrow +\infty$でも解けるので, オペレータを入れ替えることができる:
+\begin{equation}\label{eq:V}
+    \max_{\theta > \underline{\theta}}\max_{\left\{c_t\right\}_{t=0}^{\infty}} \min_{\left\{w_{t+1}\right\}_{t=0}^{\infty}}  \mathbb{E}_0 \sum^{\infty} -\beta^t (\gamma-c_t)^2+\theta\left(R(w)-\eta_0\right) .
+\end{equation}
+今回は$c_t$の挙動に一番興味があるので, $\theta = \theta^{*}$に固定する. $- \theta^* \eta_0$は定数項であり問題に影響しないので除外すると, 元の式は:
+\begin{align}\nonumber
+    &\max_{\left\{c_t\right\}_{t=0}^{\infty}} \min_{\left\{w_{t+1}\right\}_{t=0}^{\infty}}  \mathbb{E}_0 \sum_{t=0}^{\infty} -\beta^t (\gamma-c_t)^2+\theta^* R(w)\\ \label{eq:multiplier problem wo condition}
+    =&\max_{\left\{c_t\right\}_{t=0}^{\infty}} \min_{\left\{w_{t+1}\right\}_{t=0}^{\infty}}\mathbb{E}_0\left[\sum_{t=0}^{\infty} \beta^t \left[-(\gamma-c_t)^2+\beta \theta^* w_{t+1}^{\prime}w_{t+1}\right]\right] .
+\end{align}
+    %\item そこでEpstein and Zin(1989)によって提案された家計のリスク回避の度合い$\sigma<0$を導入する. 
+    %\item 本稿に適応するにあたり$\theta = - \sigma^{-1}$と設定することにより, 効用にその効果を反映させる. 
+    %\item 具体的には$\theta>0$を$w_{t+1}$の二乗和に課されるペナルティとすることにより, リスクに対する個人の態度が反映されるように設定した. ~\cite{epstein2013substitution}
+    %\item これを恒常所得モデルの効用関数に組み込むことにより, 正則化する. 具体的には以下のように~\eqref{eq:kouyou}を拡張する. 
+%\begin{equation}\label{eq:kouyou_fixed}
+    %    \max_{\left\{c_t\right\}_{t=0}^{\infty}} \min_{\left\{w_{t+1}\right\}_{t=0}^{\infty}}\mathbb{E}_0\left[\sum_{t=0}^{\infty} -\beta^t (\gamma-c_t)^2+\beta \theta w_{t+1}^{\prime}w_{t+1}\right]
+    %    \end{equation}
+         %\item ここで$\Tilde{V}(\eta_0)$は下に凸の関数である~\cite{hansen2006robust}. 
+    %\item この$\theta$の値をあげていくことで式~\eqref{endowment}, ~\eqref{endowment_fixed}の差を小さくすることができる.  
+    %\item 具体的には$\theta = \infty$の時, 式~\eqref{endowment},~\eqref{endowment_fixed}に差異はないということ. 
+    %\item しかし計算機実験で$\theta \longrightarrow\infty$を指定するのは無理なので$\sigma = -\frac{1}{\theta}$の変換を行う. 
+以上より式~\eqref{eq:constraint problem}と乗数問題は等価であり, 定理~\ref{const}は示された. 
+  \end{proof}
+%\subsection{$\eta_0$と$\theta$の関係}
+
+加えて制約問題と乗数問題が等価であるため$\eta_0$と$\theta$の関係を定式化することが可能である. あらためて式~\eqref{eq:multiplier problem wo condition}の値を$\tilde{V}(\theta)$とする. すると式~\eqref{eq:V}について以下が成り立つ:
+    \begin{align}\nonumber
+    &\max_{\theta > \underline{\theta}}\max_{\left\{c_t\right\}_{t=0}^{\infty}} \min_{\left\{w_{t+1}\right\}_{t=0}^{\infty}}  \mathbb{E}_0 \sum^{\infty} -\beta^t (\gamma-c_t)^2+\theta\left(R(w)-\eta_0\right)\\ \label{eq:K=V}
+    &= \max_{\theta >\underline{\theta}}\tilde{V}(\theta) - \theta \eta_0.
+\end{align}
+ここで新たに定理~\ref{multiplier}を導入する. 
+\begin{thm}\label{multiplier}
+%For $\eta_0>0$, suppose that $c^*$ and $w^*$ solve the constraint robust control problem for $\tilde{K}\left(\eta_0\right)>-\infty$. Then there exists a $\theta^*>0$ such that the corresponding penalty robust control problem has the same solution ~\cite{hansen2006robust}. Moreover,
+$\eta_0>0$について, $c^*$ および $w^*$が$\tilde{K}\left(\eta_0\right)>-\infty$で与えられる制約問題を解くとする. すると$\theta>0$なる双対変数が存在し乗数問題を解くことができ, また解は制約問題のそれと等しい. さらに, 次の等式が成り立つ: 
+\begin{equation}\label{eq:before legendre}
+\tilde{K}\left(\eta_0\right)=\max _{\theta >  \underline{\theta}} \tilde{V}(\theta)-\theta \eta_0.
+\end{equation}
+\end{thm}
+\begin{proof}
+この定理の証明は~\citet[Theorem 2.1]{petersen2000minimax}, ~\citet{luenberger1997optimization}
+を参照せよ. 
+    %This result is essentially the same as Theorem 2.1 of Petersen et al.~\cite{petersen2000minimax} and follows directly from Luenberger~\cite{luenberger1997optimization}.
+\end{proof}
+\noindent
+定理~\ref{multiplier}の式~\eqref{eq:before legendre}に対してルジャンドル変換を行うと以下の式を得る:
+\begin{equation}\label{eq:v before bibun}
+    \Tilde{V}(\theta )= \min_{\eta_0 \geq 0} \Tilde{K}(\eta_0) + \eta_0 \theta.
+\end{equation}
+式~\eqref{eq:v before bibun}の両辺を$\eta_0$について偏微分し, 一階条件を求めると:
+\begin{equation}
+    -\theta = \frac{\delta}{\delta \eta_0} \Tilde{K}(\eta_0),
+\end{equation}
+となり$\theta$と$\eta_0$の関係が求まる. しかし特定の$\eta^*_0$が与えられた場合でも, それに関連する$\theta^*$が一意であるとは限らず, また特定の$\theta^*$に対しても, それに関連する$\eta^*_0$が一意であるとも限らない. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+\section{競争的施設配置問題におけるFractional Problemの応用}
+
+本研究の主問題 ~\eqref{eq:RO} は, 利得関数が比（fraction）として与えられること, および
+二値変数制約に起因する非凸性を併せ持つため, 一般には厳密解法が難しい. 
+前節では, 勾配に基づく鞍点探索として LGDA に突然変異項を加えた手法を導入し, 
+実数緩和上での反復更新によって実行可能解を探索した. 
+
+一方で, ~\eqref{eq:Lhat-def} に示した緩和利得 $\widehat{L}(x,y)$ は, 各顧客 $i\in I$ について
+「線形（あるいは二次）関数の比」を足し合わせた構造を持つ. この種の目的関数はfractional programmingとして体系的に扱う枠組みが整備されており, 
+補助変数の導入によって反復的に等価な問題へ変換しながら最適化を進めることができる. 
+特に, 分子が凹・分母が凸（あるいはその双対的な凸凹条件）を満たす場合には, 
+二次変換（quadratic transform）や AM--GM 変換により, 反復ごとに凸最適化として解ける部分問題へ帰着でき, 
+停留点への収束が保証されることが知られている~\citep{shen2018fractional,zhao2023human}. 
+
+そこで本付録では, $\max_{x\in\mathcal{X}}\min_{y\in\mathcal{Y}}\widehat{L}(x,y)$ を
+fractional programming の枠組みで扱う可能性を検討する. ただし本問題は $x$ について凹, $y$ について凸が必ずしも成り立たず, 
+両変数を同時に更新することも容易ではない. このため, 本付録では
+$x$ 側には二次変換, $y$ 側には AM--GM 変換を適用し, 
+交互最適化により $(x,y)$ を更新する手順を導入し, その挙動を数値実験により確認する. 
+\subsection*{Fractional Programming}
+%$\hat{L}(x, y)$は$x$については凹であることを証明できるが, $y$について凸であることが証明できず, Stackelbergの枠組みで解くことが難しい. そこで今回は
+%$
+%\max_{x \in \mathcal{X}}\min_{y \in \mathcal{Y}}\hat{L}(x, y)
+%$をFractional Programmingの枠組みで解くことを考える. しかし$x,y$を同時に更新することはできないので, 交互最適化を用いて計算する. では$\max \hat{L}$と$\min \hat{L}$に適応するアルゴリズムを見てみよう. 
+
+\begin{thm}[二次変換による等価性と収束性~\citep{shen2018fractional}]
+\label{thm:quadratic-transform-lambda}
+\leavevmode
+
+\noindent
+次の最適化問題:
+\begin{align}
+  \max_{x \in \mathcal{X}}
+  \quad
+  \sum_{i=1}^{n}\frac{A_i(x)}{B_i(x)},
+  \tag{14}
+\end{align}
+を考える. ただし
+\(\mathcal{X}\subseteq\mathbb{R}^d\) は凸集合であり, 
+各 $A_i(x)\ge\!0$, $B_i(x)\!>\!0$ は連続可微分かつ
+  $A_i(x)\;\text{は凹, } B_i(x)\;\text{は凸}$
+
+を満たすとする. 
+
+
+\begin{enumerate}
+  \item 補助変数 $\lambda=(\lambda_1,\dots,\lambda_n)\in\mathbb{R}^n$ を導入し, 二次変換（quadratic transform）: 
+        \begin{align}
+          \max_{\substack{x\in\mathcal{X}, \lambda\in\mathbb{R}^n}}
+          \quad
+          \sum_{i=1}^{n}
+          \Bigl(
+            2\,\lambda_i\sqrt{A_i(x)} \;-\; \lambda_i^{2}\,B_i(x)
+          \Bigr),
+          \tag{16}
+        \end{align}
+        に書き換えると, 
+        問題 \textup{(14)} と \textup{(16)} は最適目的値が等しい. 
+  \item 任意の $x$ を固定したとき, 
+        各 $\lambda_i$ の最適解は閉形式で:
+        \begin{align}
+          \lambda_i^{\star}
+          \;=\;
+          \frac{\sqrt{A_i(x)}}{B_i(x)},
+          \qquad i=1,\dots,n,
+          \tag{17}
+        \end{align}
+        と表される. 
+  \item $\lambda$ を上式で更新し, $x$ を固定 $\lambda$ の下で
+        \textup{(16)} を凸最適化として解く交互最適化により, 
+        生成される列 $\{(x^{(k)},\lambda^{(k)})\}_{k=0}^{\infty}$ は
+        問題 \textup{(14)} の停留点に収束する. 
+\end{enumerate}
+\end{thm}
+
+\begin{proof}
+See ~\citet{shen2018fractional} I\hspace{-1.2pt}I - C.
+\end{proof}
+
+\begin{thm}[AM--GM 変換による等価性と収束性~\citep{zhao2023human}]
+\label{thm:amgm-transform}
+\leavevmode
+
+\noindent
+次の最適化問題:
+\begin{align}\label{eq:amgm-obj}
+  \min_{y \in \mathcal{Y}}
+  \;
+  \sum_{i=1}^{n}\frac{A_i(y)}{B_i(y)},
+\end{align}
+を考える.   
+ここで $\mathcal{X}\subseteq\mathbb{R}^d$ は非空凸集合, 
+各 $A_i(y){\ge}0$ は凸関数, 
+各 $B_i(y){>}0$ は凹関数
+（\textbf{convex--concave 条件}）とする. 
+
+\begin{enumerate}
+  \item 補助変数
+        $\eta=(\eta_1,\dots,\eta_n)\in\mathbb{R}^n_{>0}$ を導入し, AM--GM 変換:
+        \begin{align}\label{eq:amgm-frac}
+          \min_{\substack{y\in\mathcal{Y}, \eta\in\mathbb{R}^n_{>0}}}
+          \;
+          \sum_{i=1}^{n}\!
+          \Bigl(\;
+            \eta_i\,A_i^{2}(y)
+            +\frac{1}{4\,\eta_i\,B_i^{2}(y)}
+          \Bigr),
+        \end{align}
+        に書き換えると, 
+        問題~\eqref{eq:amgm-obj} と ~\eqref{eq:amgm-frac} は最適目的値が等しい. 
+  \item $y$ を固定すると, 
+        各 $\eta_i$ の最適解は:
+        \begin{align}\label{eq:amgm-eta}
+          \eta_i^{\star}
+          \;=\;
+          \frac{1}{2\,A_i(y)\,B_i(y)},
+          \qquad i=1,\dots,n,
+        \end{align}
+        で与えられる. 
+  \item $\eta$ を 式~\eqref{eq:amgm-eta} で更新し, 
+        その $\eta$ を固定したまま
+        $y$ 問題 ~\eqref{eq:amgm-frac} を解く交互最適化により, 
+        生成される列 $\{(y^{(k)},\eta^{(k)})\}_{k=0}^{\infty}$ は
+        元の問題 ~\eqref{eq:amgm-obj} の停留点に収束する. 
+\end{enumerate}
+\end{thm}
+
+\begin{proof}
+    See ~\citet{zhao2023human}.
+\end{proof}
+
+\subsection*{$\hat{L}$への応用}
+
+便宜上$\hat{L}(x, y)$を以下のように置き直す:
+
+\begin{align*}
+    \widehat{L}(x,y) &= \sum_{i\in I} h_i
+      \frac{%
+        U_i^{L}+ \displaystyle\sum_{j\in J} w_{ij}
+        \Bigl[-y_j x_j^{2} + (1+y_j)x_j\Bigr]}{%
+        U_i^{L}+ U_i^{F}+ \displaystyle\sum_{j\in J} w_{ij}
+        \Bigl[(1-y_j)x_j + y_j\Bigr]} \\
+        &= \sum_{i\in I} h_i \frac{A_i(x,y)}{B_i(x,y)}.
+\end{align*}
+
+
+ここで, $A_i(x,y)$ および $B_i(x,y)$ の構造について簡単な観察を述べる. 
+まず, $y$ を固定したとき, $A_i(x,y)$ は $x$ に関して凸となり, 
+$B_i(x,y)$ は $x$ に関して線形である. 一方で, $x$ を固定した場合には, 
+$A_i(x,y)$ は $y$ に関して線形となり, $B_i(x,y)$ もまた $y$ について線形となる. 
+
+
+加えて$A_i \ge 0, B_i > 0$ for any $(x, y) \in [0,1]^2$であるため, 上記2つのアルゴリズムが使える. 
+その疑似コードは以下のとおりである. 
+\begin{algorithm}[tb]
+  \caption{提案アルゴリズム}
+  \label{alg:double_ratio}
+  \begin{algorithmic}[1]      % ← 行番号を付ける
+    %--------------------------------------------------------
+    %  入出力
+    %--------------------------------------------------------
+    \Require 初期値 $x,y$, 最大反復回数 $\mathit{max\_iter}$, 許容誤差 $\mathit{tol}$
+    \Ensure 収束後の解 $(x,y)$
+
+    %--------------------------------------------------------
+    %  反復計算
+    %--------------------------------------------------------
+    \For{$k \gets 1$ \To $\mathit{max\_iter}$}
+      %------------------------------
+      %  Step 1: λ 更新（x 固定）
+      %------------------------------
+      
+        \State $\displaystyle
+          \lambda_i \leftarrow
+          \frac{\sqrt{A_i(x,y)}}{B_i(x,y)}$
+
+
+      %------------------------------
+      %  Step 2: x 更新（λ 固定）
+      %------------------------------
+      \State $\displaystyle
+        x_{\text{new}} \leftarrow
+        \arg\max_{x}\sum_{i=1}^{n}
+        h_i\bigl(
+          2\lambda_i\sqrt{A_i(x,y)}
+          -\lambda_i^{2}B_i(x,y)
+        \bigr)$
+
+      %------------------------------
+      %  Step 3: μ 更新（x 固定）
+      %------------------------------
+      
+        \State $\displaystyle
+          \eta_i \leftarrow
+          \frac{1}{2\,A_i(x_{new}, y)\,B_i(x_{new, }y)}$
+
+
+      %------------------------------
+      %  Step 4: y 更新（μ 固定）
+      %------------------------------
+      \State $\displaystyle
+        y_{\text{new}} \leftarrow
+        \arg\min_{y}\sum_{i=1}^{n}\!
+          \Bigl(\;
+            \eta_i\,A_i^{2}(y)
+            +\frac{1}{4\,\eta_i\,B_i^{2}(y)}
+          \Bigr)$
+
+      %------------------------------
+      %  Step 5: 収束判定
+      %------------------------------
+      \If{$\lVert x_{\text{new}} - x\rVert < \mathit{tol} \quad \text{and} \quad \lVert y_{\text{new}} - y\rVert < \mathit{tol}$}
+        \State \textbf{break}
+      \EndIf
+
+      \State $x \leftarrow x_{\text{new}}$;\quad $y \leftarrow y_{\text{new}}$
+    \EndFor
+    \Return $x$, $y$
+  \end{algorithmic}
+\end{algorithm}
+
+
+\subsection*{実験結果}
+~\citet{qi2024sequential}と同じパラメータで実験を行った. 解が2点を交互に取り, 収束しないことがわかった. 
+\begin{figure}[tb]
+    \centering
+    \includegraphics[width=0.8\linewidth]{fig/plot.png}
+    \caption{実験結果}
+    \label{fig:enter-label}
+\end{figure}
+
+\subsection*{議論}
+本問題では, リーダー \(x\) は \(\lambda\) を固定したもとで凹最大化問題を解くため, 
+まずパターン A を最適解として選択する. 一方, フォロワー \(y\) は \(\mu\) を固定して
+凸最小化問題を解くため, パターン A に対して最適反応 \(y^{*}(A)\) を選択する. 
+その後のステップにおいて, リーダーはフォロワーの反応 \(y^{*}(A)\) を観察し, 
+その状況下ではパターン B の方がより高い目的値を与えるため, パターン B を選択する. 
+この結果, 解探索はパターン A と B の間を行き来し続け, 
+2点からなる鞍点（サドルポイント）構造に閉じ込められる挙動を示す. 
+
+もっとも, 目的関数値に着目すると, それらの平均値は ~\citet{qi2024sequential} の報告と
+近い値を示すことが確認できた. 
+
+
+
+
+
+
+
+
+\section{独立性を担保したS-CFLPとAPMDの応用}
+\subsection{マキシミニ問題への帰着と実行可能領域の独立性}
+
+
+
+S-CFLP は等価なマキシミン問題に変形できる\footnote{原論文では Robust Optimization モデルとして記述されているが, 本稿ではロバスト最適化と混同することを避けるため, 「マキシミン問題への変形」と記述する. }. すなわち, フォロワがリーダのシェア率を最小化するように敵対的に行動すると仮定すると, S-CFLP は次のマキシミン問題として表される:
+\begin{equation}
+\max_{x \in \mathcal{X}} \min_{y \in \mathcal{Y}(x)} L^{+}(x, y) \label{eq:ex-RO}.
+\end{equation}
+ただし:
+\[
+\mathcal{X} := \left\{x \in \{0,1\}^{|J|} : e^{\top} x \leq p \right\},\ \ 
+\mathcal{Y}(x) := \left\{y \in \{0,1\}^{|J|} : e^{\top} y \leq r,\; y_{j} \leq 1 - x_{j}\right\},
+\]
+と定義する. ここで $\mathcal{Y}(x)$ は, リーダの選択 $x$ に依存して決まるフォロワの許容戦略集合を表しており, この依存関係のためにマキシミン問題 ~\eqref{eq:ex-RO} をそのまま解くことは一般に難しい. 
+
+この困難に対処するため, フォロワの選択集合がリーダの選択に依存しない形に問題を書き換えても, 最適解が不変であることを示す. 
+
+\begin{thm}[~\citet{qi:or:2024}]\label{thm:maxmin}
+Define $a \vee b := \max \{a, b\}$, and $\theta^{+}, \theta:\{0,1\}^{|J|}\rightarrow \mathbb{R}$ such that $\theta^{+}(x):=\min_{y \in\mathcal{Y}(x)}L^{+}(x, y)$ and $\theta(x):=\min_{y \in \mathcal{Y}}L(x,y)$, where $\mathcal{Y}:=\left\{y \in\{0,1\}^{|J|}:e^{\top}y \leq r \right\}$ and:
+\begin{equation*}
+L(x, y):=\sum_{i \in I}h_{i}\left(\frac{U_{i}^{L}+\sum_{j \in J}w_{ij}x_{j}}{U_{i}^{L}+U_{i}^{F}+\sum_{j \in J}w_{ij}\left(x_{j}\vee y_{j}\right)}\right).
+\end{equation*}
+Then, it holds that $\theta^{+}(x)=\theta(x)$ for all $x \in\mathcal{X}$.
+\end{thm}
+
+上の定理より, マキシミン問題 ~\eqref{eq:ex-RO} は:
+\begin{align}
+\label{eq:RO}
+\max_{x \in \mathcal{X}} \min_{y \in \mathcal{Y}} L(x, y),
+\end{align}
+に書き換えても最適解が変わらないことがわかる. ここで:
+\[
+\mathcal{Y} := \left\{y \in \{0,1\}^{|J|} : e^{\top} y \leq r \right\},
+\]
+としている点に注意すると, ~\eqref{eq:RO} ではフォロワの戦略集合 $\mathcal{Y}$ がリーダの選択 $x$ から独立しており, この点が元の定式化 ~\eqref{eq:ex-RO} と本質的に異なる. 
+
+
+\subsection{利得関数の実数緩和}
+
+前節までで, S-CFLP はフォロワ集合がリーダ選択に依存しない形のマキシミン問題
+~\eqref{eq:RO} に帰着できることを確認した. 以降では, 勾配法に基づく反復更新を適用するために, 
+離散変数 $x,y\in\{0,1\}^{|J|}$ を連続領域 $[0,1]^{|J|}$ に拡張し, 利得関数 $L(x,y)$ を実数緩和する. 
+
+しかし, 単純に $x,y$ を $[0,1]$ に拡張するだけでは, $L(x,y)$ に含まれる $\,x_j\vee y_j\, $により
+得られる連続拡張は一般に扱いづらく, とくに「固定した $y$ のもとで $x$ に関して凹である」ような性質は期待できない. 
+~\citet{qi:or:2024}でも述べられているように, 外部近似法の観点からは, 
+$L(x,y)$ の hypograph を凸集合として近似できることが望ましいが, 素朴な拡張はその要件を満たさない. 
+
+~\citet{qi:or:2024}ではこの点を明確にするため, まず $x_j\vee y_j$ を:
+\[
+x_j\vee y_j \approx (1-y_j)x_j + y_j
+\]
+で置き換えることにより, 連続領域上で well-defined な拡張 $\bar{L}(x,y)$ を導入している:
+\begin{equation*}
+\bar{L}(x, y):=\sum_{i \in I} h_i\left(\frac{U_i^{\mathrm{L}}+\sum_{j \in J} w_{i j} x_j}{U_i^{\mathrm{L}}+U_i^{\mathrm{F}}+\sum_{j \in J} w_{i j}\left[\left(1-y_j\right) x_j+y_j\right]}\right).
+\end{equation*}
+ところが, この $\bar{L}(x,y)$ は固定した $y$ に対しても一般に $x$ に関して凹とはならず, 
+実際に簡単な例で Hessian が負半定値にならないことが示される. 
+したがって, $\bar{L}$ に対して接平面を用いた線形カットを構成しても, 
+フォロワ側にとって扱いやすい凹性は保証されない. 
+
+そこで原論文は, 分子の線形項をより大きい二次項で置き換えて「関数を持ち上げる（bulge up）」ことで, 
+二値点での厳密性を保ちつつ $x$ に関する凹性を回復する拡張 $\widehat{L}(x,y)$ を提案している. 
+本研究でも同様に, 固定した $y\in\{0,1\}^{|J|}$ のもとで:
+\begin{equation}
+\label{eq:Lhat-def}
+\widehat{L}(x,y)
+:=\sum_{i\in I} h_i\left(
+\frac{
+U_i^{L}+\sum_{j\in J} w_{ij}\left[-y_jx_j^{2}+(1+y_j)x_j\right]
+}{
+U_i^{L}+U_i^{F}+\sum_{j\in J} w_{ij}\left[(1-y_j)x_j+y_j\right]
+}
+\right)
+\end{equation}
+を定義する. ここで分母の $(1-y_j)x_j+y_j$ は, $y$ が二値のとき $x_j\vee y_j$ に一致する連続拡張である. 
+実際, $y_j=0$ なら $(1-y_j)x_j+y_j=x_j$, $y_j=1$ なら $(1-y_j)x_j+y_j=1$ となり, 
+いずれも $x_j\vee y_j$ と一致する. 
+
+
+\begin{prop}[~\citet{qi:or:2024}]
+\label{prop:Lhat-concave}
+For fixed $y \in \{0,1\}^{|J|}$, define $\widehat{L}:[0,1]^{|J|}\to \mathbb{R}_+$ by ~\eqref{eq:Lhat-def}.
+Then, $\widehat{L}(x,y)$ is concave in $x$.
+In addition, $\widehat{L}(x,y)=L(x,y)$ for all $x\in\{0,1\}^{|J|}$.
+\end{prop}
+
+命題 ~\ref{prop:Lhat-concave} は二つの点で重要である. 第一に, 固定した二値 $y$ のもとで $\widehat{L}(x,y)$ が $x$ に関して凹となるため, 
+最大化側の更新において勾配情報が安定に利用できる. 第二に, $x$ が二値に戻ったとき $\widehat{L}$ は元の $L$ と一致するため, 
+最終段階での丸め（$[0,1]^{|J|}\to\{0,1\}^{|J|}$）によって得られる離散解の評価は, 
+元の目的関数 $L$ に対して整合的である. 
+以上より, 本研究では ~\eqref{eq:RO} の連続緩和を扱う際, 利得関数として $L$ の代わりに
+$\widehat{L}$ を用い, アルゴリズム ~\ref{alg-LGDA-with-Mutation} により反復的に戦略を更新する. 
+
+
+
+
+
+
+
+
+
+\subsection{突然変異付きラグランジュ勾配降下/上昇法}
+本研究では, マキシミン問題の代表的手法である LGDA（Lagrangian Gradient Descent Ascent） ~\citep{goktas2022gradient} を基点として, 突然変異（mutation）項を付加したアルゴリズム~\ref{alg-LGDA-with-Mutation}を用いる. LGDA は, 制約 $g_i(x,y)\le 0\ (i=1,\dots,N)$ に対するラグランジュ乗数 $\lambda_i$ を導入したラグランジュ関数 : 
+\begin{equation*}
+    {\mathcal{L}}(x, y, \lambda):=f(x, y) + \Sigma_{i=1}^N \lambda_i g_i(x,y),
+\end{equation*}
+に対し, $x$ 方向の上昇（ascent）と $y$ 方向の下降（descent）を同時に行うことで鞍点を探索する手法である.  しかしながら, 極値以外の点でも勾配が $0$ になってしまう退化が生じる場合があり, その際には更新が停滞してしまうという課題がある. 
+
+例えば, 次のような問題を考える：
+\[
+\max_{p\in[-1,1]}\ \min_{q\in[-1,1]:\,1-(p+q)\ge 0}\ f(p,q)=p^{2}+q+1.
+\]
+
+このとき（$p$ を固定した内側の最大化問題に対する）ラグランジュ関数を:
+\[
+\mathcal{L}(p,q,\lambda)
+= p^{2}+q+1+\lambda\bigl(1-(p+q)\bigr),
+\qquad \lambda\ge 0,
+\]
+と定義する. 
+
+ここで, $\mathcal{L}(p,q,\lambda)$ の $q$ についての勾配を求めると:
+\[
+\nabla_{q}\mathcal{L}(p,q,\lambda)= 1-\lambda,
+\]
+となる. したがって $\lambda=1$ となると $\nabla_{q}\mathcal{L}(p,q,\lambda)=0$ である. 
+これを $q$ の更新式に代入すると:
+\[
+q^{(t+1)} = q^{(t)} + \eta^{q}_{t}\,\nabla_{q}\mathcal{L}\bigl(p^{(t)},q^{(t)},1\}\bigr)
+         = q^{(t)} + \eta^{q}_{t}\,(1-1).
+\]
+ゆえに 
+$
+q^{(t+1)} = q^{(t)}
+$
+となり, $q$ の値が更新されなくなる. このような問題を退化という. このような問題
+は, ある関数の極値を勾配を用いて求める手法においてよく見られる現象であり, アルゴ
+リズムが局所最適解や鞍点に陥ることを避けるための工夫が必要である. 
+
+この問題に対処するため, 本研究では LGDA に突然変異を導入する. 突然変異は, その時点の戦略 $x^{(t)},\,  y^{(t)}$ を基準戦略 $c_x^k, \, c_y^k$ に引き寄せる外力として作用する項であり, 標準型ゲームにおける均衡解の学習を促進し得ることが知られている~\citep{abe2022last}. ここで基準戦略とは, 収束の安定化を目的として導入される参照点であり, 各更新のステップでは戦略がこの点に引き寄せられるように補正が加えられる. この基準戦略は固定されたものではなく, $N$ ステップごとに最新の戦略 $x^{(t)}, \, y^{(t)}$ に更新される. すなわち:
+\[
+c_x^{k} = x^{kN},\qquad c_y^{k} = y^{kN}, \qquad k = 0,1,\ldots,\left\lfloor \frac{T}{N}\right\rfloor,
+\]
+と定義する. したがって, 全反復回数 $T$ に対する基準戦略の更新回数は
+
+$K=\left\lfloor \frac{T}{N}\right\rfloor$
+である. 
+更新式には学習率 $\eta^x, \, \eta^y$ を用い, 各ステップにおける更新の量を調整する. 突然変異圧 $\mu\in\mathbb{R}_+$ は基準戦略への引力の強さを表し, $\mu$ が大きいほど $x^{(t)}, \, y^{(t)}$ はそれぞれ $c_x^k, \, c_y^k$ に強く近づく. 勾配更新で一時的に実行不能となった場合でも射影 $\Pi_{\hat{\mathcal{X}}}, \, \Pi_{\hat{\mathcal{Y}}}$ により最も近い候補点に戻すことで, 常に制約を満たしながら探索を継続できる. ここで
+$
+\hat{\mathcal{X}} := \{\, x\in[0, 1]^{|J|}\mid \sum_{j\in J} x_j \le p\, \}, \, 
+\hat{\mathcal{Y}} := \{\, y\in[0, 1]^{|J|}\mid \sum_{j\in J} y_j \le r\, \}
+$
+であり, $\mathcal{X}, \, \mathcal{Y}$を実数緩和した実行可能領域である. 
+
+S-CFLP の設定では, リーダ・フォロワの制約はそれぞれの実行可能領域
+$\hat{\mathcal X},\hat{\mathcal Y}$ として課されるため, 
+利得関数に不等式制約 $g_i(x,y)\le 0$ をラグランジュ乗数で組み込む必要はない. 
+したがって, 本研究ではラグランジュ関数を明示的に導入せず, 
+射影付きの勾配上昇/下降法の形式で:
+\[
+\max_{x\in\hat{\mathcal X}}\min_{y\in\hat{\mathcal Y}}\ \widehat L(x,y),
+\]
+を解く. 
+
+退化を緩和するため, 突然変異として基準点
+$c^k=(c_x^k,c_y^k)\in\hat{\mathcal X}\times\hat{\mathcal Y}$
+への Tikhonov 正則化を導入し, 各エポック $k$ で次の正則化付き目的関数を考える：
+\begin{equation*}
+\widetilde{\mathcal L}^k(x,y)
+:=\widehat L(x,y)
+-\frac{\mu}{2}\|x-c_x^k\|^2
++\frac{\mu}{2}\|y-c_y^k\|^2,
+\qquad \mu>0.
+\end{equation*}
+ここで $x$ は上昇, $y$ は下降を行うため, 更新に現れる勾配は:
+\begin{equation*}
+\begin{aligned}
+\nabla_x \widetilde{\mathcal L}^k(x,y)
+&=\nabla_x \widehat L(x,y)-\mu(x-c_x^k),\\
+-\nabla_y \widetilde{\mathcal L}^k(x,y)
+&=-\nabla_y \widehat L(x,y)-\mu(y-c_y^k),
+\end{aligned}
+\end{equation*}
+となる. 
+したがって, 射影付き更新は:
+\begin{equation*}
+\begin{aligned}
+x^{(t+1)} &=
+\Pi_{\hat{\mathcal X}}\!\left(
+x^{(t)}+\eta^x\bigl(\nabla_x \widehat L(x^{(t)},y^{(t)})-\mu(x^{(t)}-c_x^k)\bigr)\right),\\
+y^{(t+1)} &=
+\Pi_{\hat{\mathcal Y}}\!\left(
+y^{(t)}+\eta^y\bigl(-\nabla_y \widehat L(x^{(t)},y^{(t)})-\mu(y^{(t)}-c_y^k)\bigr)\right),
+\end{aligned}
+\end{equation*}
+で与えられる. 
+
+基準点 $c^k$ は固定されたものではなく, $N$ ステップごとに最新の戦略へ更新する：
+\[
+c_x^{k} = x^{kN},\qquad c_y^{k} = y^{kN},
+\qquad k = 0,1,\ldots,\left\lfloor \frac{T}{N}\right\rfloor.
+\]
+%また今回は$\Pi_{C^x}, \Pi_{C^y}$ により最も近い候補点に戻すため, ラグランジュ関数は$L(x, y)$と等しい. 
+
+\begin{algorithm}[tb]
+\caption{LGDA with Mutation}
+\label{alg-LGDA-with-Mutation}
+\begin{algorithmic}[1]
+\AlgInput $x_0, y_0, c^x_0, c^y_0, \eta^x, \eta^y, \mu, N$
+\State $\tau \gets 0$
+\ForAll {$t = 0, \ldots, T-1$} 
+    \State ${x}^{(t+1)} \gets \Pi_{\hat{\mathcal{X}}}\left({x}^{(t)}+\eta^{{x}}\left(\nabla_x \widehat{L}({x}^{(t)},y^{(t)}) -\mu\left({x}^{(t)}-c_{x^{}}^k\right)\right)\right)$
+    \State ${y}^{(t+1)} \gets \Pi_{\hat{\mathcal{Y}}}\left({y}^{(t)}+\eta^{{y}}\left(-\nabla_y \widehat{L}({x}^{(t)},y^{(t)}) -\mu\left(y^{(t)} - c_{y^{}}^k\right)\right)\right)$
+    \State $\tau \gets \tau +1$
+    \If {$\tau = N$}
+        \State $c_{x^{}}^k \gets {x}^{(t+1)}, c_{y^{}}^k \gets {y}^{(t+1)}$
+        \State $\tau \gets 0$
+    \EndIf
+\EndFor
+\Return $\left({x}^{(T-1)}, {y}^{(T-1)}\right)$
+\end{algorithmic}
+\end{algorithm}
+
+\subsubsection{$\ell^2$ノルムを使用した更新式}
+~\citet{abe2022last}では, 各プレイヤの戦略更新は以下の形で与えられている：
+\begin{align}
+\pi_i^{t+1} 
+&= \arg\max_{x \in \mathcal{X}_i}
+\left\{
+   \eta_t \left\langle 
+      {\nabla}_{\pi_i} v_i(\pi^t) - \mu \nabla_{\pi_i} G(\pi_i^t, \sigma_i),\, x
+   \right\rangle
+   - D_\psi(x,\pi_i^t)
+\right\}.
+\label{eq:apmd_update}
+\end{align}
+
+本小節では, APMD の式 ~\eqref{eq:apmd_update} が, $\ell^2$ ノルムを用いた設定では射影付き勾配更新として書き直せることを確認する. 
+具体的には$\psi_i(x)=\tfrac12\|x\|^2$ とし, 
+突然変異項の正則化を $G(\pi_i,\sigma_i)=\tfrac12\|\pi_i-\sigma_i\|^2$ とおく. 
+このとき更新 ~\eqref{eq:apmd_update} は, 
+ある点へのユークリッド射影:
+\[
+\pi_i^{t+1}=\Pi_{\mathcal{X}_i}\!\bigl(\pi_i^t+\eta_t ({\nabla}_{\pi_i} v_i(\pi^t) - \mu(\pi_i^t-\sigma_i))\bigr),
+\]
+に帰着される. 以下, その導出を示す. 
+
+以下：
+\[
+g_i^t := {\nabla}_{\pi_i} v_i(\pi^t), 
+\qquad
+h_i^t := g_i^t - \mu \nabla_{\pi_i} G(\pi_i^t,\sigma_i),
+\]
+とおく. 特に, 本稿では:
+\[
+G(\pi_i,\sigma_i)=\tfrac{1}{2}\|\pi_i-\sigma_i\|^2
+\quad\Longrightarrow\quad
+\nabla_{\pi_i}G(\pi_i^t,\sigma_i)=\pi_i^t-\sigma_i,
+\]
+であるから, 
+$
+h_i^t = g_i^t - \mu(\pi_i^t-\sigma_i)
+$
+となる. 
+
+さらに, 本稿ではユークリッド設定として：
+\[
+D_\psi(x,\pi_i^t)=\tfrac{1}{2}\|x-\pi_i^t\|^2,
+\]
+を用いる. したがって式 ~\eqref{eq:apmd_update} は以下のように書きなすことができる：
+\begin{align}
+\pi_i^{t+1}
+&= \arg\max_{x\in\mathcal{X}_i}
+\left\{
+\eta_t \langle h_i^t,x\rangle
+-\tfrac{1}{2}\|x-\pi_i^t\|^2
+\right\}.
+\label{eq:update_mirror_2}
+\end{align}
+
+ここで以下
+$
+f(x):=\eta_t \langle h_i^t,x\rangle-\tfrac{1}{2}\|x-\pi_i^t\|^2
+$
+と定義して解析する. まず:
+\begin{align}
+f(x)
+&=\eta_t \langle h_i^t,x\rangle
+-\tfrac{1}{2}\bigl(\|x\|^2-2\langle x,\pi_i^t\rangle+\|\pi_i^t\|^2\bigr) \notag\\
+&=\langle \eta_t h_i^t+\pi_i^t,x\rangle-\tfrac{1}{2}\|x\|^2-\tfrac{1}{2}\|\pi_i^t\|^2 \notag\\
+&=-\tfrac{1}{2}\left\|x-(\pi_i^t+\eta_t h_i^t)\right\|^2
++\tfrac{1}{2}\|\pi_i^t+\eta_t h_i^t\|^2-\tfrac{1}{2}\|\pi_i^t\|^2.
+\label{eq:complete_square}
+\end{align}
+右辺の最後の2項は \(x\) に依存しない定数である. よって式~\eqref{eq:complete_square}, ~\eqref{eq:update_mirror_2} より:
+\begin{align*}
+\pi_i^{t+1}
+&=\arg\max_{x\in\mathcal{X}_i}
+\left\{
+-\tfrac{1}{2}\left\|x-(\pi_i^t+\eta_t h_i^t)\right\|^2
+\right\} \notag\\
+&=\arg\min_{x\in\mathcal{X}_i}
+\left\|x-(\pi_i^t+\eta_t h_i^t)\right\|^2 \notag\\
+&=\Pi_{\mathcal{X}_i}\bigl(\pi_i^t+\eta_t h_i^t\bigr).
+\label{eq:projection_form}
+\end{align*}
+最後に \(h_i^t=g_i^t-\mu(\pi_i^t-\sigma_i)\) および \(g_i^t={\nabla}_{\pi_i}v_i(\pi^t)\) を代入すると：
+\begin{align*}
+\pi_i^{t+1}
+&=\Pi_{\mathcal{X}_i}\!\Bigl(
+\pi_i^t+\eta_t\bigl({\nabla}_{\pi_i}v_i(\pi^t)-\mu(\pi_i^t-\sigma_i)\bigr)
+\Bigr).
+\end{align*}
+
+
+\subsubsection{APMD 枠組みとの対応と $\widehat{L}$ の滑らかさ}
+\label{subsec:apmd_smoothness}
+
+本節では, 提案アルゴリズムを APMD（Adaptive Purtabation Mirror Descent）%
+~\citep{abe2022last} の枠組みと対応付けるため, 
+(1) 2 人零和ゲーム表現と疑似勾配, (2) $\widehat{L}$ の滑らかさ（Lipschitz 性）, 
+(3) 正則化により単調性を回復する議論（weak $\to$ strong）を順に整理する. 
+
+\paragraph{Two-player zero-sum game representation and pseudo-gradient}
+
+実数緩和された実行可能集合を
+$
+\hat{\mathcal{X}}:=\{x\in[0,1]^{|J|}\mid e^\top x\le p\},\ 
+\hat{\mathcal{Y}}:=\{y\in[0,1]^{|J|}\mid e^\top y\le r\},
+$
+とし, 戦略プロファイルを $z:=(x,y)\in\hat{\mathcal{Z}}:=\hat{\mathcal{X}}\times\hat{\mathcal{Y}}$ と書く. 
+本研究で扱う max--min 問題:
+\[
+\max_{x\in\hat{\mathcal{X}}}\min_{y\in\hat{\mathcal{Y}}}\widehat{L}(x,y),
+\]
+は, 2 人零和ゲーム
+$
+v_1(x,y):=\widehat{L}(x,y), \ v_2(x,y):=-\widehat{L}(x,y)
+$
+として表現できる. 
+このとき APMD で用いられる疑似勾配（pseudo-gradient）写像は;
+\begin{equation}
+G(z)
+:=
+\bigl(\nabla_x v_1(x,y),\, \nabla_y v_2(x,y)\bigr)
+=
+\bigl(\nabla_x \widehat{L}(x,y),\, -\nabla_y \widehat{L}(x,y)\bigr),
+\label{eq:pseudograd_Lhat}
+\end{equation}
+となる. 
+
+\paragraph{Mutation（slingshot）正則化と Lipschitz 連続性}
+
+第~\ref{alg-LGDA-with-Mutation} 節で導入した基準戦略（slingshot）を
+\(
+c^k=(c_x^k,c_y^k)\in\hat{\mathcal Z}
+\)
+とする. エポック $k$ の間は $c^k$ を固定した定数とみなし, 
+突然変異圧 $\mu>0$ により正則化された疑似勾配を:
+\begin{equation}
+G_\mu^k(z)
+:=
+G(z)-\mu(z-c^k)
+=
+\bigl(\nabla_x \widehat{L}(x,y)-\mu(x-c_x^k),\,
+-\nabla_y \widehat{L}(x,y)-\mu(y-c_y^k)\bigr),
+\label{eq:pseudograd_mut}
+\end{equation}
+と定義する（差分を取ると $c^k$ が消えるため, $c^k$ は Lipschitz/単調性定数に影響しない）. 
+
+次に, $\widehat{L}$ の滑らかさを与えるため, 分母の下限を仮定する:
+\[
+D_i(x,y)
+:=
+U_i^{L}+U_i^{F}+\sum_{j\in J}w_{ij}\bigl[(1-y_j)x_j+y_j\bigr].
+\qquad i\in I
+\]
+
+
+\begin{ass}[Denominator lower bound]
+\label{ass:denom_lb}
+ある定数 $\underline{D}>0$ が存在して:
+\[
+D_i(x,y)\ge \underline{D},
+\qquad \forall i\in I,\ \forall (x,y)\in\hat{\mathcal{Z}}
+\]
+が成り立つ. 
+\end{ass}
+
+仮定~\ref{ass:denom_lb} の下では, 各 $D_i(x,y)$ は $\hat{\mathcal Z}$ 上で $0$ を跨がないため, 
+$\widehat{L}$ は $\hat{\mathcal{Z}}$ 上で 2 回連続微分可能である：
+\[
+\widehat{L}\in C^2(\hat{\mathcal{Z}}).
+\]
+さらに $\hat{\mathcal{Z}}$ はコンパクトであり $\nabla^2\widehat{L}$ は連続なので,
+$
+L_{\nabla}:=\sup_{z\in\hat{\mathcal{Z}}}\|\nabla^2\widehat{L}(z)\| <\infty
+$
+が成り立つ. よって任意の $z,z'\in\hat{\mathcal{Z}}$ に対し:
+\begin{equation}
+\|\nabla \widehat{L}(z)-\nabla \widehat{L}(z')\|
+\le L_{\nabla}\,\|z-z'\|
+\qquad (\forall z,z'\in\hat{\mathcal Z}),
+\label{eq:Lhat_grad_Lip_from_Hess}
+\end{equation}
+すなわち $\nabla\widehat{L}$ は $L_{\nabla}$-Lipschitz である. このとき ~\eqref{eq:pseudograd_Lhat} の $G$ も Lipschitz であり, 
+例えば:
+\begin{equation}
+\|G(z)-G(z')\|
+\le L_G\,\|z-z'\|,
+\qquad
+L_G:=\sqrt{2}\,L_{\nabla}
+\label{eq:G_Lip}
+\end{equation}
+が成り立つ. また ~\eqref{eq:pseudograd_mut} より $G_\mu^k$ も Lipschitz で, 
+\begin{equation}
+\|G_\mu^k(z)-G_\mu^k(z')\|
+\le (L_G+\mu)\|z-z'\|,
+\qquad (\forall z,z'\in\hat{\mathcal Z})
+\label{eq:Gmu_Lip}
+\end{equation}
+が従う. 
+
+\paragraph{正則化された疑似勾配の単調性（weak $\to$ strong）}
+\label{subsubsec:strong_monotonicity}
+
+一般に$\widehat{L}$ は非凸・非凹であるため, 元の疑似勾配 $G$ が大域的単調性:
+\[
+\langle G(z)-G(z'),\,z-z'\rangle \le 0,
+\qquad(\forall z,z'\in\hat{\mathcal Z})
+\]
+を満たすとは限らない. 本研究ではこの点を正則化で補うため, 
+まず「弱単調性（weak monotonicity）」を導入し, そこから強単調性を得る. 
+
+\begin{dfn}[Weak/strong monotonicity (maximization sign convention)]
+\label{def:weak_strong_mono}
+ある $\rho\ge 0$ が存在して
+\[
+\langle F(z)-F(z'),\,z-z'\rangle \le \rho\|z-z'\|^2,
+\qquad \forall z,z'\in\hat{\mathcal Z}
+\]
+が成り立つとき, $F$ は $\rho$-weakly monotone であるという. 
+特に $\rho=0$ のとき $F$ は単調である. 
+さらにある $m>0$ が存在して:
+\[
+\langle F(z)-F(z'),\,z-z'\rangle \le -m\|z-z'\|^2,
+\qquad \forall z,z'\in\hat{\mathcal Z}
+\]
+が成り立つとき, $F$ は $m$-strongly monotone であるという. 
+\end{dfn}
+
+\begin{lemma}[Lipschitz $\Rightarrow$ weakly monotone]
+\label{lem:Lip_to_weakmono}
+$F$ が $L_F$-Lipschitz（$\|F(z)-F(z')\|\le L_F\|z-z'\|$）ならば, 
+$F$ は $L_F$-weakly monotone である：
+\[
+\langle F(z)-F(z'),\,z-z'\rangle \le L_F\|z-z'\|^2,
+\qquad \forall z,z'\in\hat{\mathcal Z}.
+\]
+\end{lemma}
+
+\begin{proof}
+Cauchy--Schwarz より:
+\[
+\langle F(z)-F(z'),\,z-z'\rangle
+\le \|F(z)-F(z')\|\,\|z-z'\|
+\le L_F\|z-z'\|^2.
+\]
+\end{proof}
+
+補題~\ref{lem:Lip_to_weakmono}を $F=G$ に適用すると, 
+~\eqref{eq:G_Lip}より $G$ は $\rho$-weakly monotone であり, 例えば $\rho=L_G$ と取れる. 
+この weak monotonicity を用いると, 正則化により強単調性が得られる. 
+
+\begin{prop}[Strong monotonicity of $G_\mu^k$]
+\label{prop:strong_mono}
+$G$ が $\rho$-weakly monotone であるとする. このとき任意の $\mu>\rho$ に対し, 
+$G_\mu^k(z)=G(z)-\mu(z-c^k)$ は $(\mu-\rho)$-strongly monotone である：
+\[
+\langle G_\mu^k(z)-G_\mu^k(z'),\,z-z'\rangle
+\le -(\mu-\rho)\|z-z'\|^2,
+\qquad \forall z,z'\in\hat{\mathcal Z}.
+\]
+特にこの定数は $c^k$ に依存しない. 
+\end{prop}
+
+\begin{proof}
+$G_\mu^k(z)-G_\mu^k(z')= \{G(z)-G(z')\}-\mu(z-z')$ より:
+\[
+\langle G_\mu^k(z)-G_\mu^k(z'),\,z-z'\rangle
+=
+\langle G(z)-G(z'),\,z-z'\rangle-\mu\|z-z'\|^2
+\le (\rho-\mu)\|z-z'\|^2,
+\]
+となる. 差分を取ると $c^k$ が消えるため, 定数は $c^k$ に依存しない. 
+\end{proof}
+
+\noindent
+特に $\rho=L_G$ と取れる場合, 
+$
+\mu > L_G(=\sqrt{2}\,L_{\nabla})
+$
+を満たすように正則化強度を選べば, 各エポック $k$ の部分問題は
+「強単調かつ Lipschitz な疑似勾配 $G_\mu^k$」を持つことになる. 
+
+\paragraph{APMD との整合的な解釈（外側：基準点更新, 内側：強単調部分問題の解法）}
+
+以上の準備により, 本研究の LGDA-with-Mutation は次の二層構造として理解できる. 
+
+\begin{itemize}
+\item \textbf{外側（APMD/Slingshot）:}
+基準点 $c^k$ を更新することで, 正則化された部分問題列
+（疑似勾配 $G_\mu^k$ に対応するゲーム）を逐次生成する. 
+\item \textbf{内側（Solver）:}
+各 $k$ で得られる部分問題は, 命題~\ref{prop:strong_mono}により強単調作用素 $G_\mu^k$ を持つ. 
+このため, 射影付きの 1 次法により安定に解（あるいは近似解）を計算できる. 
+\end{itemize}
+
+\noindent
+ただし, $\widehat{L}$ 自体が非単調である場合, 
+本手法は「非正則化ゲーム（$\widehat{L}$）の均衡を直接保証する」ものではなく, 
+正則化された（安定化された）部分問題をエポックごとに解き, 
+基準点更新によりその解を追跡する手続きとして位置づけられる点に注意する. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\subsection{計算機実験}
+文献手法~\citep{qi:or:2024}および提案手法の数値実験はIntel Core(TM) i7-1065G7 1.3GHz CPU, 16G RAMを搭載した64-bit Windows 11上で実施した. $[0, 50] \times [0, 50]$の格子点上に顧客集合$I$と施設候補地集合$J$をランダムに生成し, その際, 施設候補地の数$|J|$は60, 80, 100とし, 顧客のノード数$|I|$は施設候補地の数と同数に設定した. 顧客需要$h_i$は離散一様分布を仮定し, \, $\beta = 0. 1, \ \alpha_j = 0, \ \forall j \in J$と設定した. %また, 両プイレイヤは既存の施設を持たない状況$J^L = J^F = \emptyset$を想定した. 
+リーダが配置できる施設数の上限$p$, およびフォロワが配置できる施設数の上限$r$はそれぞれ2または3と設定した.  学習率はそれぞれ$\eta^x = \eta^y = 0.01$とし, 突然変異圧は$\mu=0.5$とした. また突然変異項を$N=2000$期ごとに更新した.  表~\ref{tb:mulrow}の各事例はそのスケール$|I|-|J|-p-r$を表し, 各事例ごとにランダムに生成した$I, \, J$に対して$100,000$期間の計算を10回行い, その平均値を示している. 
+
+
+表~\ref{tb:mulrow}の各列の値は次の手順で算出した. まず全探索では, 実行可能集合 \(\mathcal X\times\mathcal Y\) に属するすべての \((x,y)\) の組を列挙し, 
+ \(\max_x \min_y L(x,y)\) を直接計算して最適解 \((x^{\mathrm{enum}},y^{\mathrm{enum}})\) を得る. 
+そして表に示す「シェア率」は, その最適解に対してリーダのシェア式
+\(L^{+}(x^{\mathrm{enum}},y^{\mathrm{enum}})\) を用いて算出した値である. またこの際, 上記の環境では計算量が大きく求解に時間を要したため, さらにスペックの高い環境で算出を行った. そのため, 計算時間に関しては掲載をしない. 次に文献手法では, \(L^+\) に基づくMIP(Mixed Integer Problem)の分枝カット法で解き, 
+離散解 \((x^{\mathrm{mip}},y^{\mathrm{mip}})\in\mathcal X\times\mathcal Y\) を得る. 
+表に示すシェア率は, この離散解を \(L^{+}(x^{\mathrm{mip}},y^{\mathrm{mip}})\) に代入して計算した. 最後に提案手法（Mutation）では, 連続緩和集合 \(\hat{\mathcal X}\times\hat{\mathcal Y}\) 上で反復更新を行い, 
+連続値の解 \((x^{\mathrm{cont}},y^{\mathrm{cont}})\) を得る. その後, \(x\) は成分の大きい順に上位 \(p\) 個を \(1\), 残りを \(0\) とする
+丸めにより \(\tilde x\in\mathcal X\) を構成し, \(y\) も同様にして \(\tilde y\in\mathcal Y\) を構成する. 
+表に示すシェア率は, 丸め後の解 \((\tilde x,\tilde y)\) に対して \(L^{+}(\tilde x,\tilde y)\) を計算した値である. 
+
+計算時間については, $|I| \leq 60$ の場合には~\citet{qi:or:2024}の手法の方が高速であり, 約1.4倍から2.1倍の計算時間を要した. 一方, $|I|\ge80$ の場合には提案手法の方が高速であり, ~\citet{qi:or:2024}の手法と比べて約1.3倍から5.8倍の速度向上が見られた. 
+\begin{table}[tb]
+  \centering
+  \caption{~\citet{qi:or:2024} と提案手法のシェア率および計算時間}
+  \label{tb:mulrow}
+  \begin{tabular}{c|c|cc|cc}
+    \hline
+    \begin{tabular}{c}
+      事例 \\
+      $(|I|-|J|-p-r)$
+    \end{tabular}
+    & 全探索
+    & \multicolumn{2}{c|}{文献手法}
+    & \multicolumn{2}{c}{提案手法} \\
+    \cline{2-6}
+    & シェア率 & シェア率 & 計算時間 (s) & シェア率 & 計算時間 (s) \\
+    \hline
+    20-20-2-2    &0.502& 0.525 & 5.45    & 0.579 & 120.14 \\
+    20-20-3-2    &0.606& 0.629 & 16.48   & 0.716 & 131.85 \\
+    20-20-2-3    &0.409& 0.447 & 4.85    & 0.511 & 129.33 \\
+    40-40-2-2    &0.503& 0.537 & 20.99   & 0.571 & 130.55 \\
+    40-40-3-2    &0.604& 0.627 & 179.13  & 0.682 & 130.20 \\
+    40-40-2-3    &0.405& 0.442 & 17.41   & 0.453 & 132.59 \\
+    60-60-2-2    &0.502& 0.537 & 66.45   & 0.565 & 141.92 \\
+    60-60-3-2    &0.604& 0.620 & 944.21  & 0.671 & 138.62 \\
+    60-60-2-3    &0.403& 0.436 & 103.09  & 0.464 & 144.65 \\
+    80-80-2-2    &0.502& 0.528 & 319.53  & 0.554 & 149.62 \\
+    80-80-3-2    &0.601& 0.617 & 1254.97 & 0.674 & 145.21 \\
+    80-80-2-3    &0.401& 0.441 & 194.74  & 0.485 & 147.93 \\
+    100-100-2-2  &0.501& 0.527 & 354.66  & 0.536 & 159.68 \\
+    100-100-3-2  &0.603& 0.616 & 2280.00 & 0.692 & 157.83 \\
+    100-100-2-3  &0.402& 0.428 & 887.80  & 0.459 & 154.90 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+
+
+
+
+また, 図~\ref{fig:convergence}(a),(b)は, $(|I|-|J|-p-r) = (100 - 100 - 2 - 2)$に対する提案手法の反復過程における更新量のノルム
+\(\|\Delta x\|\), \(\|\Delta y\|\) の推移を, 最初の6{,}000反復について拡大して示したものである. 
+いずれの変数についても, 突然変異を導入したタイミングで一時的に更新量が増大するものの, 
+その後は急速に減衰し, 十分小さな値に収束していることが分かる. 
+図~\ref{fig:convergence}(c),(d)は, 同じ事例について10万反復までの全期間における
+\(\|\Delta x\|\), \(\|\Delta y\|\) の推移を示しており, 長期にわたって更新量が安定的に減少していることが確認できる. 
+さらに, 図~\ref{fig:convergence}(e)は目的関数値の推移を示しており, 
+反復の進行に伴って値が徐々に安定し, 表~\ref{tb:mulrow} に示したシェア率に対応する水準で収束していることから, 
+提案手法が数値的に安定であり, 停留点近傍に収束していると考えられる. 
+
+\begin{figure}[tb]
+  \centering
+  % --- 最初の 3,000 期: 2 枚並べる ---
+  \begin{subfigure}{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{fig/lgda_exp1_6000_dx}
+    \caption{\(\|\Delta x\|\) の推移（最初の 6{,}000 期）}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{fig/lgda_exp1_6000_dy}
+    \caption{\(\|\Delta y\|\) の推移（最初の 6{,}000 期）}
+  \end{subfigure}
+
+  \vspace{1em}
+
+  % --- 全期間: 3 枚並べる ---
+  \begin{subfigure}{0.32\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{fig/history_dx.png}
+    \caption{\(\|\Delta x\|\) の推移（全 100{,}000 期）}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}{0.32\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{fig/history_dy.png}
+    \caption{\(\|\Delta y\|\) の推移（全 100{,}000 期）}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}{0.32\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{fig/history_objective.png}
+    \caption{目的関数値の推移}
+  \end{subfigure}
+
+  \caption{提案手法における更新量のノルムおよび目的関数値の推移}
+  \label{fig:convergence_1}
+\end{figure}
+
+
+\subsection{議論}
+% \subsection{Sensitity Analysis}
+\subsubsection{Mutation正則化がもたらす安定化の解釈}
+GDA型更新は非凸・非凹ゲームでは停留点近傍で退化しやすく~\citep{vlatakis2019poincare}, また回転的なダイナミクスにより収束が阻害される場合がある. 
+本研究のmutationは, 基準点\(c^k\)へのTikhonov正則化として作用し, 疑似勾配に\(-\mu(z-c^k)\)を付加することで, 
+エポック内ではより安定な挙動を誘導する. 
+実際, 図~\ref{fig:convergence}ではmutation注入直後に更新量が一時的に増大するものの, その後急速に減衰しており, 
+探索の停滞を避けつつ安定な収束過程を形成していることが示唆される. 
+
+
+
+
+\subsubsection{理論的性質に関する補足}
+命題~\ref{prop:Lhat-concave}の凹性は固定された二値\(y\)に対する性質であり, 
+連続緩和\(y\in[0,1]^{|J|}\)の下で\(\widehat L(\cdot,y)\)が凹となる保証は一般に存在しない. 
+したがってAPMD枠組みとの対応付けでは凹性を仮定せず, 
+疑似勾配のLipschitz性とmutation正則化による（弱単調から）強単調性の回復に基づいて, 
+提案法を安定化手続きとして解釈する. 
+また, 滑らかさの主張には分母\(D_i(x,y)\)の一様下界が必要であり, 
+既存施設が存在しない設定ではoutside optionの導入等によりこの仮定を満たすことが望ましい. 
+
+\subsubsection{ハイパーパラメータの影響}
+mutation強度\(\mu\)は安定化と探索性のトレードオフを支配する. \(\mu\)が大きいほど回転的挙動は抑制される一方, 
+過度に大きい場合は基準点への引力が支配的となり探索が停滞し得る. 
+更新間隔\(N\)は擾乱注入の頻度に対応し, 小さすぎると収束が遅く, 大きすぎると退化が再発する可能性がある. 
+今後は\(\mu,N\)の自動調整（例えば更新量に基づく適応）を検討する. 
+
+
+\subsubsection{限界と今後の課題}
+提案法は非凸・非凹max--min問題に対する一次法であり, 一般には大域最適性や定数近似保証を与えない. 
+また, 本稿のmax--min化はフォロワを敵対的に仮定する点で元のS-CFLP（最適反応）とは解釈が異なるため, 
+得られた解の意味付け（頑健解としての妥当性）を整理する必要がある. 
+さらに, 連続緩和解から離散解への丸め手続きとその性能保証（小規模事例での最適値とのギャップ評価）は今後の重要課題である. 
+
+
+
+
+
+
+
+
+
+\section{定理~\ref{thm:maxmin}の証明}
+    \begin{thm}
+        Define $a \vee b:=\max \{a, b\}$, and \ $\theta^{+}, \theta:\{0,1\}^{|J|}
+        \rightarrow \mathbb{R}$ such that $\theta^{+}(x):=\min_{y \in
+        \mathcal{Y}(x)}L^{+}(x, y)$ and $\theta(x):=\min_{y \in \mathcal{Y}}L(x,
+        y)$, where
+        $\mathcal{Y}:=\left\{y \in\{0,1\}^{|J|}:e^{\top}y \leq r \right\}$ and:
+
+        \begin{equation*}
+            L(x, y):=\sum_{i \in I}h_{i}\left(\frac{U_{i}^{L}+\sum_{j \in J}w_{i
+            j}x_{j}}{U_{i}^{L}+U_{i}^{F}+\sum_{j \in J}w_{i j}\left(x_{j}\vee y_{j}\right)}
+            \right),
+        \end{equation*}
+
+        Then, it holds that $\theta^{+}(x)=\theta(x)$ for all $x \in \mathcal{X}$.
+    \end{thm}
+\begin{proof}
+        まず, 
+$
+            F_{0}:= \mathcal{Y}=\left\{\, y \in \{0,1\}^{|J|} : e^{\top}y \le r \,\right\},
+            \ 
+            F_{x}:= \left\{\, y \in \{0,1\}^{|J|} : y_{j} \le 1 - x_{j}\;\forall j \in J \,\right\}
+$
+        と定義する. リーダー側の市場シェアは:
+        \[
+            L^{+}(x,y)
+            :=\sum_{i \in I} h_{i}
+            \left(
+                \frac{
+                    U_{i}^{\mathrm{L}}
+                    + \sum_{j \in J} w_{ij}x_{j}
+                }{
+                    U_{i}^{\mathrm{L}}
+                    + U_{i}^{\mathrm{F}}
+                    + \sum_{j \in J} w_{ij}(x_{j}+y_{j})
+                }
+            \right),
+        \]
+        により計算される. よって任意の $x \in \mathcal{X}$ に対し:
+        \begin{align*}
+            \theta^{+}(x)
+                &= \min_{y \in \mathcal{Y}(x)} L^{+}(x,y)
+                 = \min_{y \in F_{0} \cap F_{x}} L^{+}(x,y), \\
+            \theta(x)
+                &= \min\{\theta_{1}(x),\, \theta_{2}(x)\},
+        \end{align*}
+        となる. ただし:
+        \begin{align*}
+            \theta_{1}(x) &= \min_{y \in F_{0} \cap F_{x}} L(x,y),\\
+            \theta_{2}(x) &= \min_{y \in F_{0} \setminus F_{x}} L(x,y),
+        \end{align*}
+        である. 
+        \begin{figure}[tb]
+            \centering
+                \includegraphics[width=\linewidth]{fig/F.jpg}
+                \caption{$F_{0}$ と $F_{x}$ のイメージ}
+
+        \end{figure}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        さらに, 任意の $y \in F_{0}\cap F_{x}$ について, 
+        各 $j \in J$ に対し $x_{j}+y_{j}=x_{j}\vee y_{j}$ が成り立つので, 
+        $L^{+}(x,y)=L(x,y)$ となる. したがって $\theta^{+}(x)=\theta_{1}(x)$ が従う. 
+        よって, 残るは任意の $x \in \mathcal{X}$ に対し
+        $\theta_{1}(x) \le \theta_{2}(x)$ を示すことであり, 
+        これにより $\theta^{+}(x)$ と $\theta(x)$ の同値性が示される\footnote{この証明の要点は「重複して出店している場所を除去しても, 
+        リーダーにとって不利にはならない」ことにある. }. 
+
+        この目的のため, 任意の $x \in \mathcal{X}$ と
+        $\bar{y} \in F_{0} \setminus F_{x}$ に対し, 
+        ある $\tilde{y} \in F_{0} \cap F_{x}$ を構成して
+        $L(x,\tilde{y}) \le L(x,\bar{y})$ を示す. 
+        $\bar{y} \in F_{0} \setminus F_{x}$ であるから, 
+        以下を満たす空でない部分集合 $K \subseteq J$ が存在する: 
+        \begin{itemize}
+            \item[(i)] $\bar{y}_{j} > 1 - x_{j}$, 
+                すなわち $x_{j} = \bar{y}_{j} = 1$ がすべての $j \in K$ で成り立つ\footnote{リーダーとフォロワーが同一地点に同時出店している状況であり, 
+                本来は禁止されているが $J$ 上には存在することに注意}, 
+            \item[(ii)] $\bar{y}_{j} \le 1 - x_{j}$ がすべての $j \in J \setminus K$ で成り立つ. 
+        \end{itemize}
+        これは, $y \in F_{0} \setminus F_{x}$ は
+        $x_j=y_j=1$ となる座標 $j$ が存在することを意味し, 
+        それらを
+$
+            K := \{\, j\in J \mid x_j = 1,\; y_j = 1 \,\}
+$
+        と定義しただけである（空集合ではない）. 
+
+        次に, 重複地点 $K$ を移動させるための空き領域を確保する目的で, 
+        $x_{j}=\bar{y}_{j}=0$ を満たす点を探す. 
+        $M \subseteq J\setminus K$ で $|M|=|K|$ かつ
+        $x_{j}=\bar{y}_{j}=0$ を満たす部分集合が存在することを示す. 
+        そのために
+$
+            J_{mn} := \{\, j\in J : x_j = m,\; \bar{y}_j = n \,\} \  (m,n \in \{0,1\})
+        $
+        とおくと: 
+        \begin{align*}
+            |J_{00}|
+                &= |J| - |J_{11}| - |J_{01}| - |J_{10}| \\
+                &\ge |J| - |K| - (r - |K|) - (p - |K|) \\
+                &= |K| + (|J|-r-p) \\
+                &\ge |K|,
+        \end{align*}
+        が成り立つ. 1つ目の不等式は
+        $\sum_{j \in J} \bar{y}_j \le r$ および
+        $\sum_{j \in J} x_j \le p$ より得られ, 
+        最後の不等式は $p+r \le |J|$ より従う. 
+        よって $|M|=|K|$ を満たす部分集合 $M$ を選ぶことができる. 
+        \begin{figure}[tb]
+\centering
+                \includegraphics[width=\linewidth]{fig/J.jpg}
+                \caption{$J, K, M$ のイメージ}
+
+        \end{figure}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        次に, この $M$ を用いて重複のある $\bar{y}$ を重複のない $\tilde{y}$ に変換する. 
+        具体的に, $\tilde{y} \in \{0,1\}^{|J|}$ を:
+        \[
+            \tilde{y}_{j} =
+            \begin{cases}
+                \bar{y}_{j}, & j \in J \setminus (K \cup M)\\
+                0,           & j \in K, \\
+                1,           & j \in M
+            \end{cases},
+        \]
+        と定める. このように構成すると, $x$ と $\tilde{y}$ は二重出店を避けた形になる. 
+
+       次に, 上記の変換によりリーダーの市場シェアが悪化しないことを示す. これまでの定義より $\tilde{y} \in F_{0} \cap F_{x}$ である. 
+        さらに, 各 $i \in I$ について:
+        \begin{align*}
+            \sum_{j \in J} w_{ij}(x_j \vee \bar{y}_j)
+                &= \sum_{j \in K} w_{ij}(x_j \vee \bar{y}_j)
+                 + \sum_{j \in M} w_{ij}(x_j \vee \bar{y}_j)
+                 + \sum_{j \in J \setminus (K \cup M)} w_{ij}(x_j \vee \bar{y}_j) \\
+                &= \sum_{j \in K} w_{ij} \cdot 1
+                 + \sum_{j \in M} w_{ij} \cdot 0
+                 + \sum_{j \in J \setminus (K \cup M)} w_{ij}(x_j \vee \bar{y}_j) \\
+                &\le \sum_{j \in K} w_{ij} \cdot 1
+                 + \sum_{j \in M} w_{ij} \cdot 1
+                 + \sum_{j \in J \setminus (K \cup M)} w_{ij}(x_j \vee \bar{y}_j) \\
+                &= \sum_{j \in J} w_{ij}(x_j \vee \tilde{y}_j).
+        \end{align*}
+
+        以上より $L(x,\bar{y}) \ge L(x,\tilde{y})$ が示され, 証明は完了する. 
+\end{proof}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\begin{comment}
+%============================================================
+\section{Bilevel Variational Inequality (BVI) に基づく Stackelberg 解法}
+\label{sec:bvi_stackelberg}
+
+%----------------------------------------
+\subsection{Variational inequality と bilevel variational inequality}
+\label{subsec:vi_bvi}
+
+本節では, Stackelberg（先手・後手）型の連続緩和問題を
+\emph{bilevel variational inequality (BVI)} として記述し, 
+Tikhonov 正則化と operator extrapolation を組み合わせた 1 次法により解く. 
+BVI は「内側（inner）VI の解集合から, 外側（outer）VI の意味で望ましい解を選択する」
+という階層構造を持つ. 
+
+\begin{dfn}[Variational inequality (VI)]
+\label{def:vi}
+閉凸集合 $X\subset\mathbb{R}^n$ と（単調）作用素 $F:X\to\mathbb{R}^n$ に対し, 
+VI$(F,X)$ とは
+\begin{equation}
+\label{eq:VI_def}
+\text{find }x^\star\in X\ \text{s.t.}\ 
+\langle F(x^\star),\,x-x^\star\rangle\ge 0,\quad \forall x\in X,
+\end{equation}
+を満たす $x^\star$ を求める問題である. 
+解集合を $X_F^\star:=\mathrm{SOL}(\mathrm{VI}(F,X))$ と書く. 
+\end{dfn}
+
+\begin{dfn}[Bilevel variational inequality (BVI)]
+\label{def:bvi}
+閉凸集合 $X\subset\mathbb{R}^n$ と作用素 $F,H:X\to\mathbb{R}^n$ に対し, 
+BVI$(H,F,X)$ とは
+\begin{equation}
+\label{eq:BVI_def}
+\text{find }x^\star\in X_F^\star\ \text{s.t.}\ 
+\langle H(x^\star),\,x-x^\star\rangle\ge 0,\quad \forall x\in X_F^\star,
+\end{equation}
+を満たす $x^\star$ を求める問題である. 
+すなわち「内側 VI$(F,X)$ の解集合 $X_F^\star$ 上で外側 VI$(H,X_F^\star)$ を解く」
+という階層構造を持つ. 
+\end{dfn}
+
+\noindent
+BVI は VI 制約付き最適化や equilibrium problems with equilibrium constraints (EPEC) などを包含する一般モデルであり, 
+外側の実行可能集合が $X_F^\star$ の形で暗黙に定義される点が難しさの根源である
+（例えば $X_F^\star$ への射影が困難）. 
+そのため, 実装上は $X$ 上の \emph{単一レベル VI} を逐次解く正則化アプローチが有効となる. 
+
+%----------------------------------------
+\subsection{凸--凹 Stackelberg 問題の BVI 表現}
+\label{subsec:stackelberg_to_bvi}
+
+以降では議論の都合上, リーダ（先手）を \emph{最小化}, フォロワ（後手）を \emph{最大化}
+として記述する（最大化--最小化の場合は目的関数に負号を付ければよい）. 
+
+\paragraph{Stackelberg（bilevel）定式化. }
+閉凸集合 $X\subset\mathbb{R}^{n_x}$, $Y\subset\mathbb{R}^{n_y}$, 
+およびカップリング制約 $g:\mathbb{R}^{n_x}\times\mathbb{R}^{n_y}\to\mathbb{R}^m$ を用いて, 
+次を考える：
+\begin{equation}
+\label{eq:stackelberg_value}
+\min_{x\in X}\ \varphi(x),
+\qquad
+\varphi(x):=\max_{y\in Y}\ \Bigl\{\, f(x,y)\ \bigm|\ g(x,y)\le 0\,\Bigr\}.
+\end{equation}
+これは「リーダが $x$ をコミットし, それを観測したフォロワが制約下で $f(x,\cdot)$ を最大化する」
+という意味で Stackelberg ゲーム（bilevel 問題）である. 
+
+\paragraph{本研究の CFLP への当てはめ（例）. }
+たとえば連続緩和では
+\[
+X=\hat{\mathcal X}=\{x\in[0,1]^{|J|}\mid e^\top x\le p\},\qquad
+Y=\hat{\mathcal Y}=\{y\in[0,1]^{|J|}\mid e^\top y\le r\},
+\]
+同一候補地の同時出店禁止は
+\[
+g(x,y):=x+y-\mathbf{1}\ \le 0
+\quad(\text{成分ごと})
+\]
+として $m=|J|$ のカップリング制約で表せる. 
+目的関数 $f$ としては（符号を調整した）利得関数
+$f(x,y)=-\widetilde L(x,y)$ 等を入れる. 
+
+\begin{ass}[内側問題の凸性・正則性]
+\label{ass:inner_convex_reg}
+任意の $x\in X$ に対し, 内側問題
+$\max\{f(x,y)\mid y\in Y,\ g(x,y)\le 0\}$
+は強双対性が成り立ち（Slater 条件など）, 
+KKT 条件が必要十分であるとする. 
+\end{ass}
+
+\paragraph{KKT による内側 VI. }
+$z:=(x,y,\lambda)\in \mathcal Z:=X\times Y\times \mathbb{R}^m_+$ とおく. 
+内側問題の KKT を VI の形でまとめるため, 
+次の作用素 $F:\mathcal Z\to\mathbb{R}^{n_x+n_y+m}$ を定義する：
+\begin{equation}
+\label{eq:inner_operator_F}
+F(z)
+:=
+\begin{bmatrix}
+0\\[2pt]
+-\nabla_y f(x,y)-\sum_{i=1}^m \lambda_i \nabla_y g_i(x,y)\\[2pt]
+-g(x,y)
+\end{bmatrix}.
+\end{equation}
+ここで $g_i$ は $g$ の $i$ 成分である. 
+
+\begin{prop}[内側 VI 解集合は「フォロワ最適反応（KKT）集合」]
+\label{prop:innerVI_equals_KKT}
+仮定 ~\ref{ass:inner_convex_reg} の下で, 
+$z^\star=(x^\star,y^\star,\lambda^\star)\in\mathrm{SOL}(\mathrm{VI}(F,\mathcal Z))$
+であることは, 
+「$y^\star$ が $x^\star$ のもとで内側問題の最適解であり, 
+$\lambda^\star$ が対応する KKT 乗数である」ことに等価である. 
+すなわち $\mathcal Z_F^\star:=\mathrm{SOL}(\mathrm{VI}(F,\mathcal Z))$ は
+フォロワの最適反応写像（KKT 対）のグラフに対応する. 
+\end{prop}
+
+\paragraph{外側（リーダ）最適性と envelope（Danskin 型）勾配. }
+$z\in\mathcal Z_F^\star$（すなわち $(y,\lambda)$ が $x$ に対する内側最適解・乗数）であれば, 
+値関数 $\varphi(x)$ の劣勾配として
+\begin{equation}
+\label{eq:envelope_subgrad}
+s(x,y,\lambda):=\nabla_x f(x,y)+\sum_{i=1}^m \lambda_i \nabla_x g_i(x,y)
+\ \in\ \partial \varphi(x)
+\end{equation}
+が得られる（制約付き envelope/Danskin の標準的帰結）. 
+この $s$ を用いて外側作用素 $H$ を
+\begin{equation}
+\label{eq:outer_operator_H}
+H(z)
+:=
+\begin{bmatrix}
+\nabla_x f(x,y)+\sum_{i=1}^m \lambda_i \nabla_x g_i(x,y)\\[2pt]
+0\\[2pt]
+0
+\end{bmatrix}
+\end{equation}
+と定義する. 
+
+\begin{prop}[Stackelberg 問題の BVI への帰着]
+\label{prop:stackelberg_is_bvi}
+仮定 ~\ref{ass:inner_convex_reg} の下で, 
+~\eqref{eq:stackelberg_value} の（凸）最適解 $x^\star$ と, 
+それに対応する内側最適解・乗数 $(y^\star,\lambda^\star)$ は, 
+$z^\star=(x^\star,y^\star,\lambda^\star)$ が
+\begin{equation}
+\label{eq:bvi_on_Z}
+\text{BVI}(H,F,\mathcal Z):
+\quad
+\text{find }z^\star\in\mathcal Z_F^\star
+\text{ s.t. }\ 
+\langle H(z^\star),\,z-z^\star\rangle\ge 0,\ \forall z\in\mathcal Z_F^\star
+\end{equation}
+を満たすことと整合的である. 
+（特に $f$ が凸で $\varphi$ が凸ならば, 外側 VI は $0\in\partial\varphi(x^\star)$ に対応する. ）
+\end{prop}
+
+\noindent
+命題 ~\ref{prop:stackelberg_is_bvi} は, 
+「フォロワ最適性（内側 VI）の上でリーダ最適性（外側 VI）を課す」という
+Stackelberg 構造が, BVI の階層構造そのものであることを示している. 
+
+%----------------------------------------
+\subsection{Tikhonov 正則化：BVI $\Rightarrow$ 単一レベル VI}
+\label{subsec:tikhonov_regularization}
+
+BVI の困難は, 外側実行可能集合 $\mathcal Z_F^\star$ が暗黙的である点にある. 
+そこで Tikhonov 正則化により, 
+$X$ 上の「単一レベル VI」を逐次解く形に落とす. 
+
+\begin{dfn}[正則化作用素]
+\label{def:regularized_operator}
+正則化パラメータ $\eta>0$ に対し, 
+\begin{equation}
+\label{eq:O_def}
+O(z,\eta):=F(z)+\eta H(z)
+\end{equation}
+を定義する. 
+\end{dfn}
+
+このとき, 各 $\eta>0$ に対して
+\begin{equation}
+\label{eq:regVI}
+\text{VI}(O(\cdot,\eta),\mathcal Z):
+\quad
+\text{find }z^\eta\in\mathcal Z\ \text{s.t.}\ 
+\langle O(z^\eta,\eta),\,z-z^\eta\rangle\ge 0,\ \forall z\in\mathcal Z
+\end{equation}
+は通常の VI である. 
+$\eta_k\downarrow 0$ かつ $\sum_k\eta_k=+\infty$ を満たす系列を用いることで, 
+$\mathrm{VI}(O(\cdot,\eta_k),\mathcal Z)$ を逐次解く手続きが
+BVI 解へ収束する（正則化アプローチ）ことが知られている. 
+
+%----------------------------------------
+\subsection{Regularized Operator Extrapolation (R-OpEx) のブロック更新}
+\label{subsec:ropexe_block}
+
+本研究では, 上記の正則化 VI を逐次解く代わりに, 
+正則化作用素 $O(\cdot,\eta_k)$ を \emph{extrapolation} しつつ 1 ステップの近接（射影）で更新する
+単一ループ法を用いる. これは R-OpEx（Regularized Operator Extrapolation）に相当する. 
+
+\paragraph{記号整理. }
+$z_k=(x_k,y_k,\lambda_k)$ に対して
+\begin{equation}
+\label{eq:st_u_def}
+\begin{aligned}
+s_k &:= \nabla_x f(x_k,y_k) + \sum_{i=1}^m (\lambda_k)_i\,\nabla_x g_i(x_k,y_k),\\
+t_k &:= -\nabla_y f(x_k,y_k) - \sum_{i=1}^m (\lambda_k)_i\,\nabla_y g_i(x_k,y_k),\\
+u_k &:= -g(x_k,y_k)\in\mathbb{R}^m
+\end{aligned}
+\end{equation}
+とおくと, 
+\begin{equation}
+\label{eq:O_block}
+O(z_k,\eta)=
+\begin{bmatrix}
+\eta\,s_k\\ t_k\\ u_k
+\end{bmatrix}.
+\end{equation}
+
+\paragraph{extrapolation 方向. }
+$\theta_k\ge 0$ を外挿係数として
+\begin{equation}
+\label{eq:dk_def}
+d_k
+:=
+O(z_k,\eta_k)+\theta_k\bigl(O(z_k,\eta_{k-1})-O(z_{k-1},\eta_{k-1})\bigr)
+\end{equation}
+を定義する. 
+~\eqref{eq:O_block} を用いれば
+\begin{equation}
+\label{eq:dk_block}
+d_k=
+\begin{bmatrix}
+\eta_k s_k + \theta_k \eta_{k-1}(s_k-s_{k-1})\\[2pt]
+t_k + \theta_k (t_k-t_{k-1})\\[2pt]
+u_k + \theta_k (u_k-u_{k-1})
+\end{bmatrix}.
+\end{equation}
+
+\paragraph{近接（射影）更新. }
+$\gamma_k>0$ をステップサイズとして, 
+\begin{equation}
+\label{eq:prox_update}
+z_{k+1}
+=
+\arg\min_{z\in\mathcal Z}\ \langle d_k, z\rangle+\frac{1}{2\gamma_k}\|z-z_k\|^2
+\end{equation}
+で更新する. ユークリッド距離を用いると ~\eqref{eq:prox_update} は射影に一致し, 
+ブロックごとに次の \emph{完全に明示的} な更新が得られる：
+\begin{equation}
+\label{eq:block_explicit_updates}
+\begin{aligned}
+x_{k+1}
+&=\Pi_{X}\!\left(
+x_k-\gamma_k\Bigl[\eta_k s_k+\theta_k\eta_{k-1}(s_k-s_{k-1})\Bigr]\right),\\
+y_{k+1}
+&=\Pi_{Y}\!\left(
+y_k-\gamma_k\Bigl[t_k+\theta_k(t_k-t_{k-1})\Bigr]\right),\\
+\lambda_{k+1}
+&=\Pi_{\mathbb{R}^m_+}\!\left(
+\lambda_k-\gamma_k\Bigl[u_k+\theta_k(u_k-u_{k-1})\Bigr]\right)
+=\Bigl[\lambda_k-\gamma_k\bigl(u_k+\theta_k(u_k-u_{k-1})\bigr)\Bigr]_+.
+\end{aligned}
+\end{equation}
+
+\begin{algorithm}[tb]
+\caption{Block R-OpEx for Stackelberg BVI (variables $(x,y,\lambda)$)}
+\label{alg:block_ropex_stackelberg}
+\begin{algorithmic}[1]
+\AlgInput $x_0=x_1\in X,\ y_0=y_1\in Y,\ \lambda_0=\lambda_1\in\mathbb{R}^m_+$,
+         sequences $\{\eta_k\}_{k\ge 0}$, $\{\gamma_k\}_{k\ge 1}$, $\{\theta_k\}_{k\ge 1}$, iterations $K$
+\For{$k=1,\dots,K-1$}
+    \State compute $(s_k,t_k,u_k)$ by ~\eqref{eq:st_u_def}
+    \State $d_k \gets O(z_k,\eta_k)+\theta_k\bigl(O(z_k,\eta_{k-1})-O(z_{k-1},\eta_{k-1})\bigr)$ \hfill (=~\eqref{eq:dk_def})
+    \State update $(x_{k+1},y_{k+1},\lambda_{k+1})$ by ~\eqref{eq:block_explicit_updates}
+\EndFor
+\State \Return $z_K=(x_K,y_K,\lambda_K)$ \Comment{理論では平均解 $\bar z_K$ を返す形も用いられる}
+\end{algorithmic}
+\end{algorithm}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+%----------------------------------------
+\subsection{正当性（収束保証）の位置づけ}
+\label{subsec:ropexe_validity}
+
+アルゴリズム ~\ref{alg:block_ropex_stackelberg} は, 
+正則化作用素 $O(\cdot,\eta_k)=F+\eta_k H$ を外挿して 1 回の近接更新で進める
+R-OpEx 型手法のブロック展開である. 
+したがって, $F,H$ の単調性や Lipschitz 性など, 
+R-OpEx の標準仮定を満たす場合には, 
+既存の収束解析を（$z=(x,y,\lambda)$ として）そのまま適用できる. 
+
+\begin{ass}[R-OpEx の適用条件（概要）]
+\label{ass:ropexe_assumptions}
+$\mathcal Z$ は非空・閉凸で有界, 
+$F$ と $H$ は（適切な意味で）単調, 
+さらに正則化係数は $\eta_k\downarrow 0$ かつ $\sum_{k=1}^\infty \eta_k=+\infty$ を満たし, 
+ステップサイズ $(\gamma_k,\theta_k)$ は既存解析が要求する条件を満たすとする. 
+\end{ass}
+
+\begin{thm}[R-OpEx の収束主張（既存結果の適用）]
+\label{thm:ropexe_convergence_claim}
+仮定 ~\ref{ass:ropexe_assumptions} の下で, 
+アルゴリズム ~\ref{alg:block_ropex_stackelberg} が生成する（平均解を含む）反復列は, 
+内側 VI と外側 VI のギャップが $K\to\infty$ で 0 に収束し, 
+極限点は BVI$(H,F,\mathcal Z)$ の解となる. 
+\end{thm}
+
+\noindent
+本研究の目的では, 
+(1) 同時出店禁止などのカップリング制約を保った Stackelberg 構造を BVI として表現できること, 
+(2) その BVI を解く具体的な 1 次法として ~\eqref{eq:block_explicit_updates} の明示更新が得られること, 
+(3) 既存の R-OpEx 収束理論により正当性（収束保証）を主張できること, 
+を整理して示した. 
+%============================================================
+\end{comment}
+
+
+
+
+
+
+
+
+
+
+\end{document}
